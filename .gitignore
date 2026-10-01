@@ -1,0 +1,26 @@
+# .NET
+bin/
+obj/
+*.user
+
+# Node / Angular
+node_modules/
+dist/
+.angular/
+
+# Secrets (never commit — see constitution Principle IV)
+appsettings.*.local.json
+**/secrets.json
+.env
+.env.*
+
+# Helm
+deploy/helm/**/charts/
+deploy/helm/**/*.tgz
+
+# OS / editor
+.vs/
+.vscode/*
+!.vscode/extensions.json
+Thumbs.db
+.DS_Store

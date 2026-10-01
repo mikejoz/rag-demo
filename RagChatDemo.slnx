@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RagChatDemo.ChatApi/RagChatDemo.ChatApi.csproj" />
+    <Project Path="src/RagChatDemo.ConfluenceStub/RagChatDemo.ConfluenceStub.csproj" />
+    <Project Path="src/RagChatDemo.IngestionWorker/RagChatDemo.IngestionWorker.csproj" />
+    <Project Path="src/RagChatDemo.McpServer/RagChatDemo.McpServer.csproj" />
+    <Project Path="src/RagChatDemo.Shared/RagChatDemo.Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RagChatDemo.ChatApi.Tests/RagChatDemo.ChatApi.Tests.csproj" />
+    <Project Path="tests/RagChatDemo.IngestionWorker.Tests/RagChatDemo.IngestionWorker.Tests.csproj" />
+    <Project Path="tests/RagChatDemo.McpServer.Tests/RagChatDemo.McpServer.Tests.csproj" />
+  </Folder>
+</Solution>
