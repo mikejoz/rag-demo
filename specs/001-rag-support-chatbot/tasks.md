@@ -243,11 +243,28 @@ when relevant, visible distinctly in the activity log.
 
 ### Implementation for User Story 4
 
-- [ ] T036 [P] [US4] Implement `create_support_ticket` MCP tool (stubbed, fake ticket id) in
+- [x] T036 [P] [US4] Implement `create_support_ticket` MCP tool (stubbed, fake ticket id) in
       `src/RagChatDemo.McpServer/Tools/CreateSupportTicketTool.cs` per
       [contracts/mcp-tools.md](./contracts/mcp-tools.md)
-- [ ] T037 [US4] Ensure `RagOrchestrator` (T021) passes both tool definitions to Ollama's `tools`
+- [x] T037 [US4] Ensure `RagOrchestrator` (T021) passes both tool definitions to Ollama's `tools`
       parameter and publishes an `McpTool` activity event naming whichever tool the model chose
+
+**Checkpoint (done 2026-10-01)**: `RagOrchestrator` was restructured from a hard-coded
+"always search first" pipeline into genuine LLM-driven tool-calling (research.md D4): it sends
+both tool definitions to Ollama, lets the model decide (search / create ticket / answer
+directly), and only on a tool call does it invoke MCP, append the tool result to the
+conversation, and make a second streaming call for the final answer. Verified live against the
+real stack (Ollama qwen3.6:27b, real McpServer/Postgres): a knowledge question ("How do I
+connect to the office Wi-Fi?") correctly invoked `search_knowledge_base` and returned a grounded,
+cited answer; a ticket request ("...please log a support ticket for this") correctly invoked
+`create_support_ticket` instead (confirmed via the McpServer's own request log) and returned a
+ticket-confirmation answer with zero citations — the model did not call search for the ticket
+case, and vice versa. 16/16 xUnit tests pass, including a new `ChatHubTests` case that inspects
+the server's `ActivityEventBuffer` directly to assert the `McpTool` activity event names
+`create_support_ticket`. **Next: Phase 7 (Deployment & Polish, T038-T047).**
+
+Note: this demo handles a single tool call per conversational turn (no multi-hop/parallel tool
+calling) — sufficient to demonstrate the pattern per US4's scope.
 
 **Checkpoint**: Both MCP tools are selectable by the model and distinctly visible in the log.
 

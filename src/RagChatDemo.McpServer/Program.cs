@@ -26,7 +26,8 @@ builder.Services.AddHttpClient<IActivityPublisher, HttpActivityPublisher>((sp, c
 
 builder.Services.AddMcpServer()
     .WithHttpTransport()
-    .WithTools<SearchKnowledgeBaseTool>();
+    .WithTools<SearchKnowledgeBaseTool>()
+    .WithTools<CreateSupportTicketTool>();
 
 var app = builder.Build();
 
