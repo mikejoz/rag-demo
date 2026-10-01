@@ -1,9 +1,15 @@
 <section class="activity-log">
   <h2 class="activity-log__title">Activity Log</h2>
 
-  <ul class="activity-log__list" role="log" aria-live="polite" aria-label="Background activity">
+  <div
+    class="activity-log__list"
+    role="log"
+    aria-live="polite"
+    aria-label="Background activity"
+    tabindex="0"
+  >
     @for (event of events(); track event.id) {
-      <li
+      <div
         class="activity-log__item"
         [class.activity-log__item--started]="event.status === 'Started'"
         [class.activity-log__item--succeeded]="event.status === 'Succeeded'"
@@ -18,7 +24,7 @@
         @if (event.detail) {
           <p class="activity-log__detail">{{ event.detail }}</p>
         }
-      </li>
+      </div>
     }
-  </ul>
+  </div>
 </section>

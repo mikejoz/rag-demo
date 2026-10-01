@@ -1,0 +1,16 @@
+image:
+  repository: pgvector/pgvector
+  tag: pg16
+  pullPolicy: IfNotPresent
+
+service:
+  port: 5432
+
+storage:
+  size: 2Gi
+
+database: ragchatdemo
+username: postgres
+
+secretName: rag-chat-demo-secrets
+secretPasswordKey: postgres-password

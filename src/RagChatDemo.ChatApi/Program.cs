@@ -37,6 +37,11 @@ builder.Services.AddScoped<RagOrchestrator>();
 
 var app = builder.Build();
 
+using (var scope = app.Services.CreateScope())
+{
+    scope.ServiceProvider.GetRequiredService<RagChatDemoDbContext>().Database.Migrate();
+}
+
 app.MapGet("/", () => "Hello World!");
 
 app.MapHub<ActivityHub>("/hubs/activity");

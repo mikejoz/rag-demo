@@ -1,0 +1,10 @@
+image:
+  repository: ragchatdemo/ingestion-worker
+  tag: local
+  pullPolicy: IfNotPresent
+
+service:
+  port: 8080
+
+configMapName: rag-chat-demo-config
+secretName: rag-chat-demo-secrets

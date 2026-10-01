@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: confluence-stub
+  labels:
+    app: confluence-stub
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: confluence-stub
+  template:
+    metadata:
+      labels:
+        app: confluence-stub
+    spec:
+      containers:
+        - name: confluence-stub
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 10

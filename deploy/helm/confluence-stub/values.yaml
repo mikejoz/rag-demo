@@ -1,0 +1,7 @@
+image:
+  repository: ragchatdemo/confluence-stub
+  tag: local
+  pullPolicy: IfNotPresent
+
+service:
+  port: 8080

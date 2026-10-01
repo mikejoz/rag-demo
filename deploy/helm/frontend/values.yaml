@@ -1,0 +1,8 @@
+image:
+  repository: ragchatdemo/frontend
+  tag: local
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80

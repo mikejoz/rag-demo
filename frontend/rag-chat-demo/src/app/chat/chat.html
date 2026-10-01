@@ -1,5 +1,5 @@
 <section class="chat">
-  <div class="chat__messages" role="log" aria-live="polite">
+  <div class="chat__messages" role="log" aria-live="polite" tabindex="0">
     @for (message of messages(); track message.id) {
       <div class="chat__message" [class.chat__message--user]="message.role === 'user'">
         <p class="chat__text">{{ message.text }}</p>

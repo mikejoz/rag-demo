@@ -1,0 +1,6 @@
+apiVersion: v2
+name: chat-api
+description: Chat API (SignalR hubs, RAG orchestration) for RagChatDemo
+type: application
+version: 0.1.0
+appVersion: "1.0"

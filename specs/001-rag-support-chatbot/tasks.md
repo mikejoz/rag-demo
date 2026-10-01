@@ -275,21 +275,54 @@ calling) — sufficient to demonstrate the pattern per US4's scope.
 **Purpose**: Package and deploy everything to the local Docker Desktop cluster; cross-cutting
 hardening.
 
-- [ ] T038 [P] Helm chart `deploy/helm/postgres` (pgvector image, PVC, `Secret` for password)
-- [ ] T039 [P] Helm chart `deploy/helm/confluence-stub`
-- [ ] T040 [P] Helm chart `deploy/helm/mcp-server`
-- [ ] T041 [P] Helm chart `deploy/helm/ingestion-worker` (env: Ollama host, Postgres conn,
+- [x] T038 [P] Helm chart `deploy/helm/postgres` (pgvector image, PVC, `Secret` for password)
+- [x] T039 [P] Helm chart `deploy/helm/confluence-stub`
+- [x] T040 [P] Helm chart `deploy/helm/mcp-server`
+- [x] T041 [P] Helm chart `deploy/helm/ingestion-worker` (env: Ollama host, Postgres conn,
       Confluence base URL + `Secret` reference for API token)
-- [ ] T042 [P] Helm chart `deploy/helm/chat-api`
-- [ ] T043 [P] Helm chart `deploy/helm/frontend` (nginx-served Angular build)
-- [ ] T044 `deploy/scripts/deploy-all.ps1` — `helm upgrade --install` all charts into `rag-demo`
+- [x] T042 [P] Helm chart `deploy/helm/chat-api`
+- [x] T043 [P] Helm chart `deploy/helm/frontend` (nginx-served Angular build)
+- [x] T044 `deploy/scripts/deploy-all.ps1` — `helm upgrade --install` all charts into `rag-demo`
       namespace in dependency order
-- [ ] T045 `deploy/scripts/seed-knowledge-base.ps1` — convenience script to trigger the Hangfire
+- [x] T045 `deploy/scripts/seed-knowledge-base.ps1` — convenience script to trigger the Hangfire
       ingestion job once after first deploy
-- [ ] T046 Run axe accessibility checks against the deployed Angular app; fix any
+- [x] T046 Run axe accessibility checks against the deployed Angular app; fix any
       critical/serious violations (SC-005)
-- [ ] T047 Execute the full [quickstart.md](./quickstart.md) verification checklist against the
+- [x] T047 Execute the full [quickstart.md](./quickstart.md) verification checklist against the
       cluster deployment and record results
+
+**Checkpoint (done 2026-10-01)**: Full stack deployed and verified live on the `docker-desktop`
+Kubernetes cluster (namespace `rag-demo`). All 6 pods `1/1 Running`
+(postgres/confluence-stub/mcp-server/ingestion-worker/chat-api/frontend). End-to-end verified
+through the actual nginx-served frontend (port-forwarded): ingestion populated the knowledge base
+from the in-cluster `confluence-stub`, a chat question correctly retrieved + streamed a grounded,
+cited answer, and `host.docker.internal:11434` (the host's Ollama instance) was reachable from
+within pods. Ran a real `axe-core` scan against the deployed app, found 3 violations
+(`aria-allowed-role`, `listitem`, `scrollable-region-focusable` from `ActivityLogComponent`'s
+`<ul>`/`<li>` + missing `tabindex`), fixed them, rebuilt, redeployed, and re-scanned to confirm 0
+violations on both an empty and populated screen. Full [quickstart.md](./quickstart.md)
+verification checklist recorded as all-PASS. 16/16 xUnit tests + Angular build/tests still green.
+
+Additions beyond the literal task list (needed to make the cluster deployment actually work):
+- Added 5 `Dockerfile`s (`src/RagChatDemo.{ChatApi,ConfluenceStub,IngestionWorker,McpServer}/
+  Dockerfile`, `frontend/rag-chat-demo/Dockerfile`) and a root + frontend `.dockerignore` —
+  required to build the images the Helm charts deploy; not explicitly listed as a task but
+  implied by "deploy everything."
+- Added `deploy/scripts/build-images.ps1` (not in the original task list) since `deploy-all.ps1`
+  only handles the Helm/kubectl side; images must be built first.
+- Added a plain `kubectl`-applied `ConfigMap`/`Secret` (`rag-chat-demo-config`/
+  `rag-chat-demo-secrets`, bootstrap logic lives in `deploy-all.ps1`, not a 7th Helm chart) per
+  research.md D7's naming convention, generating the Postgres password randomly rather than
+  storing it anywhere in git (Principle IV). Connection strings are assembled in each
+  Deployment's env via Kubernetes' `$(VAR)` substitution referencing the secret-sourced env var,
+  so the password itself never appears in a template or ConfigMap.
+- Added automatic `Database.Migrate()` on startup to `ChatApi`/`McpServer`/`IngestionWorker`
+  (previously migrations were only ever applied manually via `dotnet ef database update` during
+  local dev) — discovered necessary when the first cluster ingestion run failed with
+  `relation "SourceDocuments" does not exist` against the fresh cluster Postgres PVC.
+- `seed-knowledge-base.ps1` port-forwards + opens the Hangfire dashboard rather than calling an
+  internal/undocumented Hangfire trigger endpoint directly, matching T035's existing "dashboard
+  already supports manual trigger" approach.
 
 ---
 
