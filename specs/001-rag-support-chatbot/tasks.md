@@ -188,27 +188,48 @@ stub articles are reflected in subsequent US1 answers.
 
 ### Tests for User Story 3
 
-- [ ] T030 [P] [US3] Unit test: re-ingesting an unchanged `SourceDocument` is a no-op; an edited
+- [x] T030 [P] [US3] Unit test: re-ingesting an unchanged `SourceDocument` is a no-op; an edited
       one replaces its `Chunk` rows, in `tests/RagChatDemo.IngestionWorker.Tests/IngestionJobTests.cs`
 
 ### Implementation for User Story 3
 
-- [ ] T031 [P] [US3] Implement `RagChatDemo.ConfluenceStub` minimal API with ~15-20 seeded
+- [x] T031 [P] [US3] Implement `RagChatDemo.ConfluenceStub` minimal API with ~15-20 seeded
       IT/support articles (`GET /wiki/api/v2/pages`, `GET /wiki/api/v2/pages/{id}`)
-- [ ] T032 [P] [US3] Implement `IConfluenceClient` + `ConfluenceStubClient` and
+- [x] T032 [P] [US3] Implement `IConfluenceClient` + `ConfluenceStubClient` and
       `ConfluenceCloudClient` in `src/RagChatDemo.IngestionWorker/Confluence/` per
       [research.md](./research.md) D1
-- [ ] T033 [US3] Implement `IngestionJob` in
+- [x] T033 [US3] Implement `IngestionJob` in
       `src/RagChatDemo.IngestionWorker/Jobs/IngestionJob.cs`: fetch → publish activity event per
       page → chunk (T012) → embed (T011) → upsert `SourceDocument`/`Chunk` (replace-on-change
       per FR-013) → publish activity events — depends on T009, T011, T012, T014, T032
-- [ ] T034 [US3] Configure Hangfire server + Postgres storage + recurring job registration + the
+- [x] T034 [US3] Configure Hangfire server + Postgres storage + recurring job registration + the
       built-in Hangfire Dashboard in `src/RagChatDemo.IngestionWorker/Program.cs`
-- [ ] T035 [US3] Add a manually-triggerable Hangfire job button/link documented in
+- [x] T035 [US3] Add a manually-triggerable Hangfire job button/link documented in
       [quickstart.md](./quickstart.md) (dashboard already supports manual trigger out of the box)
 
-**Checkpoint**: Ingestion populates/updates Postgres; US1 answers reflect edited content after a
-manual trigger.
+**Checkpoint (done 2026-10-01)**: Verified live end-to-end via the real Hangfire dashboard
+(`http://localhost:5071/hangfire`) against the real `ConfluenceStub` (16 seeded IT/support
+articles), real Ollama embeddings, and real Postgres. First manual trigger ingested all 16
+articles (17 `SourceDocument`/`Chunk` rows total, including one pre-existing from Phase 4) in
+1m40s. Edited one article's content via the stub's `PUT /wiki/api/v2/pages/{id}` endpoint (demo
+convenience, not part of the real Confluence contract), re-triggered, and confirmed: (a) the
+second run completed in 4.1s (15 of 16 pages were untouched no-ops, FR-013), (b) chunk count
+stayed at 17 (no duplicates), and (c) the chunk text for that document reflected the edit
+(SC-003). All 14 xUnit tests pass (5 new `IngestionJobTests`); solution builds with 0 warnings.
+**Next: Phase 6 (US4, T036-T037).**
+
+Notes / deviations:
+- Added a non-standard `PUT /wiki/api/v2/pages/{id}` to `ConfluenceStub` (not in the real
+  Confluence API) purely so a demo operator can show SC-003 without touching the database
+  directly.
+- Found and fixed a real EF Core gotcha in `IngestionJob`: adding a new `Chunk` (with a
+  pre-assigned, non-default `Guid` key) only to the parent's navigation collection
+  (`existing.Chunks.Add(...)`) on an already-tracked `SourceDocument` caused EF's change
+  detection to treat it as `Modified` instead of `Added` (0-rows-affected concurrency exception).
+  Fixed by also calling `db.Chunks.Add(chunk)` explicitly. See repo memory for details.
+- `IActivityPublisher` failures (ChatApi unreachable) currently abort the whole `IngestionJob`
+  rather than degrading gracefully — acceptable for this demo (all services are expected to be
+  up together) but noted as a possible future hardening item.
 
 ---
 
