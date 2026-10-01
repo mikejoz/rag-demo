@@ -1,5 +1,8 @@
 <main class="app-shell">
   <h1 class="app-shell__title">RAG Support Chatbot</h1>
-  <app-chat class="app-shell__chat" />
+  <div class="app-shell__panels">
+    <app-chat class="app-shell__chat" />
+    <app-activity-log class="app-shell__activity-log" />
+  </div>
   <router-outlet />
 </main>

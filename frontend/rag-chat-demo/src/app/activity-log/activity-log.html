@@ -1,0 +1,24 @@
+<section class="activity-log">
+  <h2 class="activity-log__title">Activity Log</h2>
+
+  <ul class="activity-log__list" role="log" aria-live="polite" aria-label="Background activity">
+    @for (event of events(); track event.id) {
+      <li
+        class="activity-log__item"
+        [class.activity-log__item--started]="event.status === 'Started'"
+        [class.activity-log__item--succeeded]="event.status === 'Succeeded'"
+        [class.activity-log__item--failed]="event.status === 'Failed'"
+      >
+        <span class="activity-log__category">{{ event.category }}</span>
+        <span class="activity-log__operation">{{ event.operation }}</span>
+        @if (event.target) {
+          <span class="activity-log__target">{{ event.target }}</span>
+        }
+        <span class="activity-log__status">{{ event.status }}</span>
+        @if (event.detail) {
+          <p class="activity-log__detail">{{ event.detail }}</p>
+        }
+      </li>
+    }
+  </ul>
+</section>

@@ -10,7 +10,7 @@ public class DirectActivityPublisher(IHubContext<ActivityHub> hubContext, Activi
 {
     public async Task PublishAsync(ActivityEventDto activityEvent, CancellationToken cancellationToken = default)
     {
-        buffer.Add(activityEvent);
-        await hubContext.Clients.All.SendAsync("ActivityEvent", activityEvent, cancellationToken);
+        var sequenced = buffer.Add(activityEvent);
+        await hubContext.Clients.All.SendAsync("ActivityEvent", sequenced, cancellationToken);
     }
 }

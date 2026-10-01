@@ -145,24 +145,37 @@ MCP tool / generation events appear live and in order.
 
 ### Tests for User Story 2
 
-- [ ] T025 [P] [US2] Integration test: posting events to `/internal/activity-events` results in
+- [x] T025 [P] [US2] Integration test: posting events to `/internal/activity-events` results in
       ordered delivery to a connected `/hubs/activity` client, in
       `tests/RagChatDemo.ChatApi.Tests/ActivityHubTests.cs`
 
 ### Implementation for User Story 2
 
-- [ ] T026 [P] [US2] Angular: `ActivitySignalrService` in
+- [x] T026 [P] [US2] Angular: `ActivitySignalrService` in
       `frontend/rag-chat-demo/src/app/core/activity-signalr.service.ts`
-- [ ] T027 [US2] Angular: `ActivityLogComponent` (standalone, OnPush, signals, `@for` over a
+- [x] T027 [US2] Angular: `ActivityLogComponent` (standalone, OnPush, signals, `@for` over a
       signal of events, categorized styling, ARIA live region for accessibility) in
       `frontend/rag-chat-demo/src/app/activity-log/` — depends on T026
-- [ ] T028 [US2] Wire `ActivityLogComponent` + `ChatComponent` side-by-side in the root `App`
+- [x] T028 [US2] Wire `ActivityLogComponent` + `ChatComponent` side-by-side in the root `App`
       component layout (`frontend/rag-chat-demo/src/app/app.ts`/`app.html`)
-- [ ] T029 [US2] Verify/adjust ordering guarantee: events carry a server-assigned monotonic
+- [x] T029 [US2] Verify/adjust ordering guarantee: events carry a server-assigned monotonic
       sequence number (add `Sequence: long` to `ActivityEventDto`/hub) so same-timestamp events
       still render in the correct order (edge case in spec.md)
 
-**Checkpoint**: Activity log visibly narrates US1's retrieval → MCP → generation steps live.
+**Checkpoint (done 2026-10-01)**: Verified live in a real browser (`ng serve` + real ChatApi/
+McpServer/Postgres/Ollama) — asked a chat question and watched the Activity Log panel render
+`Retrieval → McpTool (Succeeded, "1 chunk(s) found") → Generation (Started) → Generation
+(Succeeded, "110 character(s) generated")` live, in order, alongside the streamed cited answer
+(screenshot captured during the session). `Sequence` is assigned authoritatively by
+`ActivityEventBuffer.Add` (server-side, monotonic `Interlocked`-free counter under a lock) —
+not by originating services — and `ActivitySignalrService` sorts its local signal by `sequence`
+as a defense-in-depth measure against any out-of-order delivery. All 11 xUnit tests + both
+Angular test files pass. **Next: Phase 5 (US3, T030-T035).**
+
+Note: hit a ~30 min debugging detour writing `ActivityHubTests` — see
+/memories/repo/ragchatdemo-notes.md "Phase 4 (US2) notes" for the root cause (test-side SignalR
+JSON protocol needs its own `JsonStringEnumConverter`) and the `HttpTransportType.LongPolling`
+requirement for broadcast-style pushes under `WebApplicationFactory`'s in-memory `TestServer`.
 
 ---
 

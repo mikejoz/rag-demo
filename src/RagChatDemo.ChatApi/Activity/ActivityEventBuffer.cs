@@ -8,16 +8,21 @@ public class ActivityEventBuffer
     private const int Capacity = 50;
     private readonly object gate = new();
     private readonly Queue<ActivityEventDto> events = new();
+    private long nextSequence = 1;
 
-    public void Add(ActivityEventDto activityEvent)
+    /// <summary>Assigns the next monotonic sequence number and stores the event, returning the sequenced copy.</summary>
+    public ActivityEventDto Add(ActivityEventDto activityEvent)
     {
         lock (gate)
         {
-            events.Enqueue(activityEvent);
+            var sequenced = activityEvent with { Sequence = nextSequence++ };
+            events.Enqueue(sequenced);
             while (events.Count > Capacity)
             {
                 events.Dequeue();
             }
+
+            return sequenced;
         }
     }
 

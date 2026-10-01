@@ -26,4 +26,10 @@ public record ActivityEventDto
     public required ActivityStatus Status { get; init; }
     public string? Detail { get; init; }
     public required DateTimeOffset Timestamp { get; init; }
+
+    /// <summary>
+    /// Server-assigned monotonic order (assigned by the Activity Hub's broadcaster, not the
+    /// originating service), so same-timestamp events still render in the correct order.
+    /// </summary>
+    public long Sequence { get; init; }
 }
