@@ -90,35 +90,48 @@ story's test), ask a question via the API/UI and see a streamed, cited answer.
 
 ### Tests for User Story 1
 
-- [ ] T016 [P] [US1] Contract test: MCP `search_knowledge_base` returns ranked results for a
+- [x] T016 [P] [US1] Contract test: MCP `search_knowledge_base` returns ranked results for a
       known seeded chunk, in `tests/RagChatDemo.McpServer.Tests/SearchKnowledgeBaseToolTests.cs`
-- [ ] T017 [P] [US1] Integration test: `ChatHub.SendMessage` with a seeded chunk produces at
+- [x] T017 [P] [US1] Integration test: `ChatHub.SendMessage` with a seeded chunk produces at
       least one `ResponseToken` and a `ResponseComplete` with a citation, in
       `tests/RagChatDemo.ChatApi.Tests/ChatHubTests.cs`
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Implement `search_knowledge_base` MCP tool in
+- [x] T018 [US1] Implement `search_knowledge_base` MCP tool in
       `src/RagChatDemo.McpServer/Tools/SearchKnowledgeBaseTool.cs` (embeds query via
       `OllamaClient`, cosine-similarity query via EF Core/pgvector) — depends on T009, T011
-- [ ] T019 [US1] Implement MCP client wiring in `src/RagChatDemo.ChatApi/Mcp/McpToolClient.cs`
+- [x] T019 [US1] Implement MCP client wiring in `src/RagChatDemo.ChatApi/Mcp/McpToolClient.cs`
       (connects to `RagChatDemo.McpServer`, lists tools, invokes by name) — depends on T018
-- [ ] T020 [US1] Implement `ChatHub` in `src/RagChatDemo.ChatApi/Hubs/ChatHub.cs` per
+- [x] T020 [US1] Implement `ChatHub` in `src/RagChatDemo.ChatApi/Hubs/ChatHub.cs` per
       [contracts/signalr-hubs.md](./contracts/signalr-hubs.md) `SendMessage` → orchestration
-- [ ] T021 [US1] Implement `RagOrchestrator` in `src/RagChatDemo.ChatApi/Chat/RagOrchestrator.cs`:
+- [x] T021 [US1] Implement `RagOrchestrator` in `src/RagChatDemo.ChatApi/Chat/RagOrchestrator.cs`:
       publish `Retrieval` activity event → call MCP tool → publish `McpTool` activity event →
       build grounded prompt → `OllamaClient.StreamChatAsync` → publish `Generation` activity
       events → stream tokens to `ChatHub` caller — depends on T013, T014, T019, T020
-- [ ] T022 [US1] Handle "no relevant chunks found" path (FR-012): return a fixed
+- [x] T022 [US1] Handle "no relevant chunks found" path (FR-012): return a fixed
       no-knowledge-found response instead of calling the LLM with empty context
-- [ ] T023 [P] [US1] Angular: `ChatSignalrService` in
+- [x] T023 [P] [US1] Angular: `ChatSignalrService` in
       `frontend/rag-chat-demo/src/app/core/chat-signalr.service.ts` wrapping `@microsoft/signalr`
       for `/hubs/chat`
-- [ ] T024 [US1] Angular: `ChatComponent` (standalone, OnPush, signals, reactive form for the
+- [x] T024 [US1] Angular: `ChatComponent` (standalone, OnPush, signals, reactive form for the
       message input) in `frontend/rag-chat-demo/src/app/chat/` rendering streamed tokens and
       citations — depends on T023
 
-**Checkpoint**: User Story 1 fully functional and demoable independent of ingestion/US2/US3/US4.
+**Checkpoint (done 2026-10-01)**: Full real end-to-end smoke test (Postgres + real McpServer +
+real ChatApi + real Ollama qwen3.6:27b/nomic-embed-text, a Node `@microsoft/signalr` client as
+stand-in for the Angular UI) against a manually seeded chunk produced streamed tokens and a
+correct citation. All 10 xUnit tests pass (added `ChatHubTests` using `WebApplicationFactory` +
+faked `IMcpToolClient`/`IOllamaClient` for fast/deterministic CI, and `SearchKnowledgeBaseToolTests`
+against the real dev Postgres). Angular: `npm run build` and `npm run test` both pass (4 tests:
+`App`, `Chat`). MCP SDK note: `CallToolResult.StructuredContent` wasn't populated by this
+client/server/protocol-version combination in practice, so `RagOrchestrator` falls back to
+parsing the first `TextContentBlock` as JSON (`ExtractToolResult<T>`). Also added `IOllamaClient`/
+`IMcpToolClient` interfaces (not explicitly named in the task list) purely for test substitution;
+concrete `OllamaClient`/`McpToolClient` are unchanged otherwise. Added an Angular dev-server
+`proxy.conf.json` (`/hubs` → `http://localhost:5042`, `ws: true`) so `ChatSignalrService` can use
+relative hub URLs in both dev and the eventual nginx-fronted prod deployment. **Next: Phase 4
+(US2, T025-T029).**
 
 ---
 

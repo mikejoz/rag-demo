@@ -11,7 +11,7 @@ builder.Services.AddDbContext<RagChatDemoDbContext>(options =>
         npgsql => npgsql.UseVector()));
 
 builder.Services.Configure<OllamaOptions>(builder.Configuration.GetSection(OllamaOptions.SectionName));
-builder.Services.AddHttpClient<OllamaClient>((sp, client) =>
+builder.Services.AddHttpClient<IOllamaClient, OllamaClient>((sp, client) =>
 {
     var options = sp.GetRequiredService<IConfiguration>().GetSection(OllamaOptions.SectionName).Get<OllamaOptions>();
     client.BaseAddress = new Uri(options?.BaseUrl ?? throw new InvalidOperationException("Ollama:BaseUrl is not configured."));

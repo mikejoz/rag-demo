@@ -1,0 +1,38 @@
+<section class="chat">
+  <div class="chat__messages" role="log" aria-live="polite">
+    @for (message of messages(); track message.id) {
+      <div class="chat__message" [class.chat__message--user]="message.role === 'user'">
+        <p class="chat__text">{{ message.text }}</p>
+
+        @if (message.isStreaming) {
+          <span class="chat__streaming-indicator" aria-label="Generating response">▋</span>
+        }
+
+        @if (message.error) {
+          <p class="chat__error">{{ message.error }}</p>
+        }
+
+        @if (message.citations.length > 0) {
+          <ul class="chat__citations">
+            @for (citation of message.citations; track citation.sourceUrl) {
+              <li>
+                <a [href]="citation.sourceUrl" target="_blank" rel="noopener">{{ citation.documentTitle }}</a>
+              </li>
+            }
+          </ul>
+        }
+      </div>
+    }
+  </div>
+
+  <form class="chat__form" [formGroup]="form" (ngSubmit)="submit()">
+    <input
+      class="chat__input"
+      type="text"
+      formControlName="message"
+      placeholder="Ask a support question…"
+      autocomplete="off"
+    />
+    <button class="chat__submit" type="submit" [disabled]="form.invalid">Send</button>
+  </form>
+</section>

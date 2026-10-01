@@ -7,7 +7,7 @@ using Pgvector;
 namespace RagChatDemo.Shared.Ollama;
 
 /// <summary>Thin wrapper over Ollama's HTTP API (embeddings + streaming chat).</summary>
-public class OllamaClient(HttpClient httpClient, IOptions<OllamaOptions> options)
+public class OllamaClient(HttpClient httpClient, IOptions<OllamaOptions> options) : IOllamaClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 

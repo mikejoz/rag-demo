@@ -1,0 +1,7 @@
+{
+  "/hubs": {
+    "target": "http://localhost:5042",
+    "ws": true,
+    "secure": false
+  }
+}
