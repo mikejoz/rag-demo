@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
     <ProjectReference Include="..\RagChatDemo.Shared\RagChatDemo.Shared.csproj" />
@@ -15,6 +15,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>82ecdfa2-bc81-4bf0-89b9-64ba1f46c59c</UserSecretsId>
   </PropertyGroup>
 
 </Project>

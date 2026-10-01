@@ -37,31 +37,46 @@ app. Git repo initialized, initial commit made. **Next: Phase 2 (T008-T015).**
 **Purpose**: Core infrastructure every user story depends on (Principle III requires activity
 events everywhere, so the hub + event contract must exist before any story-specific logic).
 
-- [ ] T008 [P] Define `ActivityEventDto`, `ChatMessageDto`, `SourceCitationDto` records in
+- [x] T008 [P] Define `ActivityEventDto`, `ChatMessageDto`, `SourceCitationDto` records in
       `src/RagChatDemo.Shared/Contracts/`
-- [ ] T009 [P] Implement `SourceDocument` and `Chunk` EF Core entities + `RagChatDemoDbContext` in
+- [x] T009 [P] Implement `SourceDocument` and `Chunk` EF Core entities + `RagChatDemoDbContext` in
       `src/RagChatDemo.Shared/Data/` per [data-model.md](./data-model.md), using
       `Pgvector.EntityFrameworkCore` for the `Chunk.Embedding` column
-- [ ] T010 Add initial EF Core migration (`InitialCreate`) enabling the `vector` extension and an
+- [x] T010 Add initial EF Core migration (`InitialCreate`) enabling the `vector` extension and an
       HNSW index on `Chunk.Embedding`
-- [ ] T011 [P] Implement `OllamaClient` in `src/RagChatDemo.Shared/Ollama/` with
+- [x] T011 [P] Implement `OllamaClient` in `src/RagChatDemo.Shared/Ollama/` with
       `GetEmbeddingAsync(text)` and `StreamChatAsync(messages, model)` (NDJSON streaming) per
       [research.md](./research.md) D2
-- [ ] T012 [P] Implement pure chunking function `TextChunker.Chunk(text)` in
+- [x] T012 [P] Implement pure chunking function `TextChunker.Chunk(text)` in
       `src/RagChatDemo.Shared/Chunking/` (paragraph-aware, ~2000 chars, 10% overlap) with unit
       tests in `tests/RagChatDemo.IngestionWorker.Tests/TextChunkerTests.cs`
-- [ ] T013 Implement `ActivityHub` (SignalR) in `src/RagChatDemo.ChatApi/Hubs/ActivityHub.cs`
+- [x] T013 Implement `ActivityHub` (SignalR) in `src/RagChatDemo.ChatApi/Hubs/ActivityHub.cs`
       with a last-50-events replay buffer, and `POST /internal/activity-events` endpoint that
       broadcasts to it, per [contracts/signalr-hubs.md](./contracts/signalr-hubs.md)
-- [ ] T014 [P] Implement `IActivityPublisher` in `src/RagChatDemo.Shared/Activity/` with an
+- [x] T014 [P] Implement `IActivityPublisher` in `src/RagChatDemo.Shared/Activity/` with an
       HTTP-posting implementation used by `IngestionWorker`/`McpServer`, and a direct-broadcast
       implementation used by `ChatApi` itself
-- [ ] T015 Configure environment-based config (Ollama base URL, Postgres connection string,
+- [x] T015 Configure environment-based config (Ollama base URL, Postgres connection string,
       Confluence base URL/token, model names) via `appsettings.json` + `dotnet user-secrets` in
       each service, per Principle IV
 
-**Checkpoint**: Activity events can be posted from a test endpoint and observed over the
-`/hubs/activity` SignalR connection; `Chunk`/`SourceDocument` tables exist in Postgres.
+**Checkpoint (done 2026-10-01)**: Verified against a local `pgvector/pgvector:pg16` Docker
+container (`ragchatdemo-postgres`) — `InitialCreate` migration applies cleanly, `Chunks`/
+`SourceDocuments` tables exist with the HNSW cosine index. Posted a test `ActivityEventDto` to
+`POST /internal/activity-events` on a running `ChatApi` and got `202 Accepted` (enums serialize
+as strings via `JsonStringEnumConverter`, configured for both minimal-API JSON and the SignalR
+JSON hub protocol). Confirmed `nomic-embed-text` (pulled into the local `ollama` container)
+returns 768-dimension embeddings, matching `Chunk.Embedding`'s `vector(768)` column. All 8 xUnit
+tests pass; solution builds with 0 warnings/0 errors. `dotnet user-secrets` initialized for
+ChatApi/IngestionWorker/McpServer holding the Postgres connection string (with password) and a
+Confluence API token placeholder — none of these are in source control. **Next: Phase 3 (US1,
+T016-T024).**
+
+Note: `DirectActivityPublisher` (the direct-broadcast `IActivityPublisher` impl) lives in
+`src/RagChatDemo.ChatApi/Activity/` rather than `Shared/Activity/`, since it depends on
+`IHubContext<ActivityHub>` and `ActivityHub` is a ChatApi type (classlib `Shared` can't reference
+ASP.NET Core SignalR hub types cleanly). `IActivityPublisher` + `HttpActivityPublisher` are in
+`Shared/Activity/` as specified.
 
 ---
 
