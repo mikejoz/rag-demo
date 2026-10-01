@@ -13,20 +13,22 @@ demo horizon).
 
 ## Phase 1: Setup (Shared Infrastructure)
 
-- [ ] T001 Create `RagChatDemo.sln` and solution folder layout (`src/`, `tests/`) at repo root
-- [ ] T002 `dotnet new classlib` for `src/RagChatDemo.Shared` (entities, DTOs, Ollama client, chunker)
-- [ ] T003 `dotnet new web` for `src/RagChatDemo.ChatApi`, `src/RagChatDemo.IngestionWorker`,
+- [x] T001 Create `RagChatDemo.sln` and solution folder layout (`src/`, `tests/`) at repo root
+- [x] T002 `dotnet new classlib` for `src/RagChatDemo.Shared` (entities, DTOs, Ollama client, chunker)
+- [x] T003 `dotnet new web` for `src/RagChatDemo.ChatApi`, `src/RagChatDemo.IngestionWorker`,
       `src/RagChatDemo.McpServer`, `src/RagChatDemo.ConfluenceStub`; add all to the .sln
-- [ ] T004 [P] `dotnet new xunit` for `tests/RagChatDemo.ChatApi.Tests`,
+- [x] T004 [P] `dotnet new xunit` for `tests/RagChatDemo.ChatApi.Tests`,
       `tests/RagChatDemo.IngestionWorker.Tests`, `tests/RagChatDemo.McpServer.Tests`; reference
       their respective projects
-- [ ] T005 [P] `ng new rag-chat-demo` (standalone, SCSS, no SSR) under `frontend/`
-- [ ] T006 [P] Add `.editorconfig` / `Directory.Build.props` (nullable enabled, implicit usings)
+- [x] T005 [P] `ng new rag-chat-demo` (standalone, SCSS, no SSR) under `frontend/`
+- [x] T006 [P] Add `.editorconfig` / `Directory.Build.props` (nullable enabled, implicit usings)
       at repo root for consistent .NET formatting
-- [ ] T007 Add `ollama pull nomic-embed-text` to `deploy/scripts/setup-ollama-models.ps1`
+- [x] T007 Add `ollama pull nomic-embed-text` to `deploy/scripts/setup-ollama-models.ps1`
 
-**Checkpoint**: Solution builds (`dotnet build`), Angular app serves (`npm start`), both empty of
-feature logic.
+**Checkpoint (done 2026-10-01)**: Solution builds (`dotnet build`), Angular app builds
+(`npm run build`), both clean, 0 warnings. Key NuGet packages installed (EF Core+Npgsql+Pgvector,
+Hangfire+Postgres, ModelContextProtocol[.AspNetCore]); `@microsoft/signalr` added to the Angular
+app. Git repo initialized, initial commit made. **Next: Phase 2 (T008-T015).**
 
 ---
 
