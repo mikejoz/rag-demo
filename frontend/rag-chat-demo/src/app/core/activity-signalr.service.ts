@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, NgZone, inject, signal } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
 
 export type ActivityCategory = 'Ingestion' | 'Retrieval' | 'McpTool' | 'Generation';
@@ -19,6 +19,7 @@ export interface ActivityEvent {
 /** Wraps the ChatApi's `/hubs/activity` SignalR hub (contracts/signalr-hubs.md). */
 @Injectable({ providedIn: 'root' })
 export class ActivitySignalrService {
+  private readonly zone = inject(NgZone);
   private connection: signalR.HubConnection | null = null;
   private connecting: Promise<void> | null = null;
 
@@ -30,26 +31,68 @@ export class ActivitySignalrService {
     }
 
     this.connecting ??= this.buildConnection();
-    await this.connecting;
+    try {
+      await this.connecting;
+    } finally {
+      this.connecting = null;
+    }
+  }
+
+  /** Pull the server buffer (after chat completes or reconnect). */
+  async refresh(): Promise<void> {
+    await this.connect();
+    if (this.connection?.state !== signalR.HubConnectionState.Connected) {
+      return;
+    }
+
+    const recent = await this.connection.invoke<ActivityEvent[]>('GetRecent');
+    this.mergeEvents(recent ?? []);
   }
 
   private async buildConnection(): Promise<void> {
     const connection = new signalR.HubConnectionBuilder()
       .withUrl('/hubs/activity')
-      .withAutomaticReconnect()
+      .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
       .build();
 
     connection.on('ActivityEvent', (event: ActivityEvent) => {
-      this.events.update((events) => {
-        if (events.some((e) => e.id === event.id)) {
-          return events;
-        }
+      this.zone.run(() => this.mergeEvents([event]));
+    });
 
-        return [...events, event].sort((a, b) => a.sequence - b.sequence);
+    connection.onreconnected(() => {
+      void this.zone.run(async () => {
+        try {
+          const recent = await connection.invoke<ActivityEvent[]>('GetRecent');
+          this.mergeEvents(recent ?? []);
+        } catch (error: unknown) {
+          console.error('Failed to refresh activity buffer after reconnect', error);
+        }
       });
     });
 
     await connection.start();
     this.connection = connection;
+
+    try {
+      const recent = await connection.invoke<ActivityEvent[]>('GetRecent');
+      this.zone.run(() => this.mergeEvents(recent ?? []));
+    } catch (error: unknown) {
+      console.warn('GetRecent not available yet; relying on OnConnected replay', error);
+    }
+  }
+
+  private mergeEvents(incoming: ActivityEvent[]): void {
+    if (incoming.length === 0) {
+      return;
+    }
+
+    this.events.update((events) => {
+      const byId = new Map(events.map((e) => [e.id, e]));
+      for (const event of incoming) {
+        byId.set(event.id, event);
+      }
+
+      return [...byId.values()].sort((a, b) => a.sequence - b.sequence);
+    });
   }
 }

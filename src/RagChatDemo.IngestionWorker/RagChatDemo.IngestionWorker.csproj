@@ -18,4 +18,9 @@
     <UserSecretsId>82ecdfa2-bc81-4bf0-89b9-64ba1f46c59c</UserSecretsId>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Don't propagate appsettings transitively when another project references us -->
+    <None Update="appsettings*.json" CopyToPublishDirectory="Never" />
+  </ItemGroup>
+
 </Project>

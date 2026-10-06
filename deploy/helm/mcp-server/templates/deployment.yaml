@@ -31,6 +31,11 @@ spec:
                   key: postgres-password
             - name: ConnectionStrings__Postgres
               value: "Host=postgres;Port=5432;Database=ragchatdemo;Username=postgres;Password=$(POSTGRES_PASSWORD)"
+            - name: Confluence__ApiToken
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: confluence-api-token
           readinessProbe:
             httpGet:
               path: /

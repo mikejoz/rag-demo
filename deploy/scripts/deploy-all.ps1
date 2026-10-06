@@ -5,7 +5,10 @@
 
 param(
     [string]$Namespace = 'rag-demo',
-    [string]$ConfluenceApiToken = ''
+    [string]$ConfluenceApiToken = '',
+    [string]$ConfluenceEmail = '',
+    [string]$ConfluenceBaseUrl = 'http://confluence-stub:8080',
+    [bool]$ConfluenceUseStub = $true
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,8 +42,9 @@ kubectl create configmap rag-chat-demo-config `
     --from-literal=Ollama__ChatModel='qwen3.6:27b' `
     --from-literal=Mcp__ServerUrl='http://mcp-server:8080' `
     --from-literal=ChatApi__BaseUrl='http://chat-api:8080' `
-    --from-literal=Confluence__UseStub='true' `
-    --from-literal=Confluence__BaseUrl='http://confluence-stub:8080' `
+    --from-literal=Confluence__UseStub=$($ConfluenceUseStub.ToString().ToLower()) `
+    --from-literal=Confluence__BaseUrl=$ConfluenceBaseUrl `
+    --from-literal=Confluence__Email=$ConfluenceEmail `
     --dry-run=client -o yaml | kubectl apply -f -
 
 # --- Helm releases, in dependency order ----------------------------------------------------

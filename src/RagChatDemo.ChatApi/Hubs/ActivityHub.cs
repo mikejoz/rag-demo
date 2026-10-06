@@ -15,4 +15,7 @@ public class ActivityHub(ActivityEventBuffer buffer) : Hub
 
         await base.OnConnectedAsync();
     }
+
+    /// <summary>Client can pull the current buffer (used after reconnect or to resync the activity log).</summary>
+    public IReadOnlyList<RagChatDemo.Shared.Contracts.ActivityEventDto> GetRecent() => buffer.GetRecent();
 }

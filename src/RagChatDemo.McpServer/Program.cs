@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using RagChatDemo.IngestionWorker.Confluence;
 using RagChatDemo.McpServer.Tools;
 using RagChatDemo.Shared.Activity;
 using RagChatDemo.Shared.Data;
@@ -22,6 +23,25 @@ builder.Services.AddHttpClient<IActivityPublisher, HttpActivityPublisher>((sp, c
 {
     var baseUrl = sp.GetRequiredService<IConfiguration>()["ChatApi:BaseUrl"];
     client.BaseAddress = new Uri(baseUrl ?? throw new InvalidOperationException("ChatApi:BaseUrl is not configured."));
+});
+
+builder.Services.Configure<ConfluenceOptions>(builder.Configuration.GetSection(ConfluenceOptions.SectionName));
+builder.Services.AddHttpClient<ConfluenceStubClient>((sp, client) =>
+{
+    var options = sp.GetRequiredService<IConfiguration>().GetSection(ConfluenceOptions.SectionName).Get<ConfluenceOptions>();
+    client.BaseAddress = new Uri(options?.BaseUrl ?? throw new InvalidOperationException("Confluence:BaseUrl is not configured."));
+});
+builder.Services.AddHttpClient<ConfluenceCloudClient>((sp, client) =>
+{
+    var options = sp.GetRequiredService<IConfiguration>().GetSection(ConfluenceOptions.SectionName).Get<ConfluenceOptions>();
+    client.BaseAddress = new Uri(options?.BaseUrl ?? throw new InvalidOperationException("Confluence:BaseUrl is not configured."));
+});
+builder.Services.AddScoped<IConfluenceClient>(sp =>
+{
+    var options = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<ConfluenceOptions>>().Value;
+    return options.UseStub
+        ? sp.GetRequiredService<ConfluenceStubClient>()
+        : sp.GetRequiredService<ConfluenceCloudClient>();
 });
 
 builder.Services.AddMcpServer()

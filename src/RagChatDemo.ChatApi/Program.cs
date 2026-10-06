@@ -11,6 +11,11 @@ using RagChatDemo.Shared.Ollama;
 
 var builder = WebApplication.CreateBuilder(args);
 
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddOpenApi();
+}
+
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 builder.Services.AddDbContext<RagChatDemoDbContext>(options =>
@@ -40,6 +45,24 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     scope.ServiceProvider.GetRequiredService<RagChatDemoDbContext>().Database.Migrate();
+}
+
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+    var swaggerHtml = @"<!DOCTYPE html>
+<html lang=""en"">
+<head><meta charset=""utf-8""/><meta name=""viewport"" content=""width=device-width,initial-scale=1""/>
+<title>RagChatDemo Chat API - Swagger UI</title>
+<link rel=""stylesheet"" href=""https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css""/>
+<style>html{box-sizing:border-box;overflow:visible}body{margin:0;background:#fafafa}.swagger-ui .topbar{display:none}</style>
+</head>
+<body><div id=""swagger-ui""></div>
+<script src=""https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js""></script>
+<script src=""https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js""></script>
+<script>window.onload=()=>{const ui=SwaggerUIBundle({url:""/openapi/v1.json"",dom_id:""#swagger-ui"",presets:[SwaggerUIBundle.presets.apis,SwaggerUIStandalonePreset],layout:""BaseLayout"",persistAuthorization:true});window.ui=ui};</script>
+</body></html>";
+    app.MapGet("/swagger", () => Results.Content(swaggerHtml, "text/html"));
 }
 
 app.MapGet("/", () => "Hello World!");

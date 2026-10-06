@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\RagChatDemo.IngestionWorker\RagChatDemo.IngestionWorker.csproj" />
     <ProjectReference Include="..\..\src\RagChatDemo.McpServer\RagChatDemo.McpServer.csproj" />
     <ProjectReference Include="..\..\src\RagChatDemo.Shared\RagChatDemo.Shared.csproj" />
   </ItemGroup>

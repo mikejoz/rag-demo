@@ -36,6 +36,20 @@ public partial class IngestionJob(
 
         if (existing is not null && existing.LastModifiedAt == page.LastModifiedAt)
         {
+            // Content unchanged, but still refresh SourceUrl (e.g. wiki path prefix fixes).
+            if (!string.Equals(existing.SourceUrl, page.WebUrl, StringComparison.Ordinal))
+            {
+                existing.SourceUrl = page.WebUrl;
+                await db.SaveChangesAsync(cancellationToken);
+                await PublishAsync(
+                    "fetch_page",
+                    ActivityStatus.Succeeded,
+                    page.Title,
+                    "Unchanged content; source URL updated",
+                    cancellationToken);
+                return;
+            }
+
             await PublishAsync("fetch_page", ActivityStatus.Succeeded, page.Title, "Unchanged, skipped", cancellationToken);
             return;
         }

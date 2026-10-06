@@ -8,3 +8,5 @@
 specs/
 tests/
 frontend/**/node_modules/
+# Exclude IngestionWorker appsettings to avoid duplicate content file conflicts during McpServer publish
+src/RagChatDemo.IngestionWorker/appsettings*.json

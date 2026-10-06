@@ -1,1 +1,11 @@
-/* You can add global styles to this file, and also import other style files */
+/* App-specific global styles (Bootstrap loaded via angular.json) */
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bs-gray-100);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}

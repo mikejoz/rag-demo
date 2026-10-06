@@ -1,0 +1,2 @@
+# Exclude sibling project appsettings to avoid duplicate content files during publish
+../RagChatDemo.IngestionWorker/appsettings*.json

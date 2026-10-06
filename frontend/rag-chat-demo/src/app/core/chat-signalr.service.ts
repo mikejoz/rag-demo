@@ -1,5 +1,6 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
+import { ActivitySignalrService } from './activity-signalr.service';
 
 export interface SourceCitation {
   documentTitle: string;
@@ -18,6 +19,7 @@ export interface ChatMessageView {
 /** Wraps the ChatApi's `/hubs/chat` SignalR hub (contracts/signalr-hubs.md). */
 @Injectable({ providedIn: 'root' })
 export class ChatSignalrService {
+  private readonly activitySignalr = inject(ActivitySignalrService);
   private connection: signalR.HubConnection | null = null;
   private connecting: Promise<void> | null = null;
 
@@ -25,6 +27,8 @@ export class ChatSignalrService {
 
   async sendMessage(text: string): Promise<void> {
     await this.ensureConnected();
+    // Keep activity hub alive / connected for live McpTool + Generation events.
+    void this.activitySignalr.connect();
 
     this.messages.update((messages) => [
       ...messages,
@@ -40,13 +44,17 @@ export class ChatSignalrService {
     }
 
     this.connecting ??= this.buildConnection();
-    await this.connecting;
+    try {
+      await this.connecting;
+    } finally {
+      this.connecting = null;
+    }
   }
 
   private async buildConnection(): Promise<void> {
     const connection = new signalR.HubConnectionBuilder()
       .withUrl('/hubs/chat')
-      .withAutomaticReconnect()
+      .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
       .build();
 
     connection.on('ResponseToken', (messageId: string, token: string) => this.appendToken(messageId, token));
@@ -77,6 +85,9 @@ export class ChatSignalrService {
     this.messages.update((messages) =>
       messages.map((m) => (m.id === messageId ? { ...m, isStreaming: false, citations: citedSources } : m)),
     );
+    // Resync activity log from server buffer so McpTool/Generation show even if the live
+    // ActivityEvent push was dropped (idle websocket / port-forward flakiness).
+    void this.activitySignalr.refresh();
   }
 
   private failMessage(messageId: string, message: string): void {
@@ -91,5 +102,6 @@ export class ChatSignalrService {
         { id: messageId, role: 'assistant', text: '', citations: [], isStreaming: false, error: message },
       ];
     });
+    void this.activitySignalr.refresh();
   }
 }

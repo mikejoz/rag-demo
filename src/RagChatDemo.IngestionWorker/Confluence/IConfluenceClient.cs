@@ -22,4 +22,7 @@ public record ConfluencePage(string ExternalId, string Title, string HtmlContent
 public interface IConfluenceClient
 {
     Task<IReadOnlyList<ConfluencePage>> GetPagesAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>Fetch a single page by its Confluence page ID (for live content retrieval at query time).</summary>
+    Task<ConfluencePage?> GetPageByIdAsync(string externalId, CancellationToken cancellationToken = default);
 }

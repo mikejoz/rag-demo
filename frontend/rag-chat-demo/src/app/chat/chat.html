@@ -1,38 +1,109 @@
-<section class="chat">
-  <div class="chat__messages" role="log" aria-live="polite" tabindex="0">
+<section class="chat card shadow-sm h-100 border-0">
+  <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-3">
+    <i class="bi bi-headset text-primary fs-5" aria-hidden="true"></i>
+    <div>
+      <h2 class="h6 mb-0">Support chat</h2>
+      <small class="text-body-secondary">Ask a question — answers cite live Confluence pages</small>
+    </div>
+  </div>
+
+  <div
+    class="card-body chat__messages bg-body-tertiary"
+    role="log"
+    aria-live="polite"
+    tabindex="0"
+  >
+    @if (messages().length === 0) {
+      <div class="text-center text-body-secondary py-5 px-3">
+        <i class="bi bi-chat-square-text display-6 d-block mb-3 opacity-50" aria-hidden="true"></i>
+        <p class="mb-1 fw-medium">No messages yet</p>
+        <p class="small mb-0">Try something like “How do I request new equipment?”</p>
+      </div>
+    }
+
     @for (message of messages(); track message.id) {
-      <div class="chat__message" [class.chat__message--user]="message.role === 'user'">
-        <p class="chat__text">{{ message.text }}</p>
+      <div
+        class="chat__bubble d-flex"
+        [class.justify-content-end]="message.role === 'user'"
+        [class.justify-content-start]="message.role !== 'user'"
+      >
+        <div
+          class="chat__message rounded-3 px-3 py-2 shadow-sm"
+          [class.chat__message--user]="message.role === 'user'"
+          [class.chat__message--assistant]="message.role !== 'user'"
+        >
+          <div class="d-flex align-items-center gap-2 mb-1 small text-body-secondary">
+            <i
+              class="bi"
+              [class.bi-person-fill]="message.role === 'user'"
+              [class.bi-robot]="message.role !== 'user'"
+              aria-hidden="true"
+            ></i>
+            <span class="text-uppercase fw-semibold" style="font-size: 0.7rem; letter-spacing: 0.04em">
+              {{ message.role === 'user' ? 'You' : 'Assistant' }}
+            </span>
+          </div>
 
-        @if (message.isStreaming) {
-          <span class="chat__streaming-indicator" aria-label="Generating response">▋</span>
-        }
+          <p class="chat__text mb-0">{{ message.text }}</p>
 
-        @if (message.error) {
-          <p class="chat__error">{{ message.error }}</p>
-        }
+          @if (message.isStreaming) {
+            <span class="chat__streaming-indicator text-primary ms-1" aria-label="Generating response">
+              <span class="spinner-grow spinner-grow-sm" role="status"></span>
+            </span>
+          }
 
-        @if (message.citations.length > 0) {
-          <ul class="chat__citations">
-            @for (citation of message.citations; track citation.sourceUrl) {
-              <li>
-                <a [href]="citation.sourceUrl" target="_blank" rel="noopener">{{ citation.documentTitle }}</a>
-              </li>
-            }
-          </ul>
-        }
+          @if (message.error) {
+            <div class="alert alert-danger py-1 px-2 mt-2 mb-0 small" role="alert">
+              <i class="bi bi-exclamation-triangle-fill me-1" aria-hidden="true"></i>
+              {{ message.error }}
+            </div>
+          }
+
+          @if (message.citations.length > 0) {
+            <div class="chat__citations mt-2 pt-2 border-top border-light-subtle">
+              <div class="small text-body-secondary mb-1">
+                <i class="bi bi-link-45deg me-1" aria-hidden="true"></i>
+                Sources
+              </div>
+              <div class="d-flex flex-wrap gap-1">
+                @for (citation of message.citations; track citation.sourceUrl) {
+                  <a
+                    class="badge rounded-pill text-decoration-none text-bg-primary-subtle text-primary-emphasis border border-primary-subtle"
+                    [href]="citation.sourceUrl"
+                    target="_blank"
+                    rel="noopener"
+                  >
+                    <i class="bi bi-box-arrow-up-right me-1" aria-hidden="true"></i>
+                    {{ citation.documentTitle }}
+                  </a>
+                }
+              </div>
+            </div>
+          }
+        </div>
       </div>
     }
   </div>
 
-  <form class="chat__form" [formGroup]="form" (ngSubmit)="submit()">
-    <input
-      class="chat__input"
-      type="text"
-      formControlName="message"
-      placeholder="Ask a support question…"
-      autocomplete="off"
-    />
-    <button class="chat__submit" type="submit" [disabled]="form.invalid">Send</button>
-  </form>
+  <div class="card-footer bg-white border-top">
+    <form class="d-flex gap-2" [formGroup]="form" (ngSubmit)="submit()">
+      <div class="input-group">
+        <span class="input-group-text bg-white">
+          <i class="bi bi-pencil-square text-body-secondary" aria-hidden="true"></i>
+        </span>
+        <input
+          class="form-control"
+          type="text"
+          formControlName="message"
+          placeholder="Ask a support question…"
+          autocomplete="off"
+          aria-label="Message"
+        />
+        <button class="btn btn-primary" type="submit" [disabled]="form.invalid">
+          <i class="bi bi-send-fill me-1" aria-hidden="true"></i>
+          Send
+        </button>
+      </div>
+    </form>
+  </div>
 </section>

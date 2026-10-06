@@ -24,6 +24,10 @@ spec:
             - configMapRef:
                 name: {{ .Values.configMapName }}
           env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Development
+            - name: DOTNET_VALIDATE_ON_BUILD
+              value: "false"
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:

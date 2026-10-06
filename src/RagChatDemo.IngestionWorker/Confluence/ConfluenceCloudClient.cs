@@ -29,13 +29,33 @@ public class ConfluenceCloudClient(HttpClient httpClient, IOptions<ConfluenceOpt
                 p.Id,
                 p.Title,
                 p.Body.Storage.Value,
-                new Uri(httpClient.BaseAddress!, p.Links.Webui).ToString(),
+                ConfluenceWebUrl.Resolve(httpClient.BaseAddress, p.Links.Webui),
                 p.Version.CreatedAt)));
 
             next = response.ListLinks?.Next;
         }
 
         return pages;
+    }
+
+    public async Task<ConfluencePage?> GetPageByIdAsync(string externalId, CancellationToken cancellationToken = default)
+    {
+        ApplyAuthentication();
+
+        var response = await httpClient.GetFromJsonAsync<ConfluenceWirePage>(
+            $"/wiki/api/v2/pages/{Uri.EscapeDataString(externalId)}?body-format=storage", cancellationToken);
+
+        if (response is null)
+        {
+            return null;
+        }
+
+        return new ConfluencePage(
+            response.Id,
+            response.Title,
+            response.Body.Storage.Value,
+            ConfluenceWebUrl.Resolve(httpClient.BaseAddress, response.Links.Webui),
+            response.Version.CreatedAt);
     }
 
     private void ApplyAuthentication()

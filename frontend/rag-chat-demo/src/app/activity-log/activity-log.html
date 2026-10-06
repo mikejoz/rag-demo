@@ -1,28 +1,71 @@
-<section class="activity-log">
-  <h2 class="activity-log__title">Activity Log</h2>
+<section class="activity-log card shadow-sm h-100 border-0">
+  <div class="card-header bg-white border-bottom d-flex align-items-center gap-2 py-3">
+    <i class="bi bi-activity text-success fs-5" aria-hidden="true"></i>
+    <div>
+      <h2 class="h6 mb-0">Activity log</h2>
+      <small class="text-body-secondary">Live pipeline events</small>
+    </div>
+  </div>
 
   <div
-    class="activity-log__list"
+    class="card-body activity-log__list p-2"
     role="log"
     aria-live="polite"
     aria-label="Background activity"
     tabindex="0"
   >
+    @if (events().length === 0) {
+      <div class="text-center text-body-secondary py-4 px-2">
+        <i class="bi bi-hourglass-split d-block mb-2 fs-4 opacity-50" aria-hidden="true"></i>
+        <p class="small mb-0">Events will appear here when you send a message or when ingestion runs.</p>
+      </div>
+    }
+
     @for (event of events(); track event.id) {
       <div
-        class="activity-log__item"
-        [class.activity-log__item--started]="event.status === 'Started'"
-        [class.activity-log__item--succeeded]="event.status === 'Succeeded'"
-        [class.activity-log__item--failed]="event.status === 'Failed'"
+        class="activity-log__item list-group-item list-group-item-action border rounded mb-2 px-3 py-2"
+        [class.list-group-item-primary]="event.status === 'Started'"
+        [class.list-group-item-success]="event.status === 'Succeeded'"
+        [class.list-group-item-danger]="event.status === 'Failed'"
       >
-        <span class="activity-log__category">{{ event.category }}</span>
-        <span class="activity-log__operation">{{ event.operation }}</span>
-        @if (event.target) {
-          <span class="activity-log__target">{{ event.target }}</span>
-        }
-        <span class="activity-log__status">{{ event.status }}</span>
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <span class="badge text-bg-secondary text-uppercase" style="font-size: 0.65rem">
+            {{ event.category }}
+          </span>
+          <span class="fw-semibold small">{{ event.operation }}</span>
+          @if (event.target) {
+            <span class="text-body-secondary small text-truncate" style="max-width: 12rem" [title]="event.target">
+              {{ event.target }}
+            </span>
+          }
+          <span class="ms-auto">
+            @switch (event.status) {
+              @case ('Started') {
+                <span class="badge text-bg-primary">
+                  <i class="bi bi-play-fill" aria-hidden="true"></i>
+                  Started
+                </span>
+              }
+              @case ('Succeeded') {
+                <span class="badge text-bg-success">
+                  <i class="bi bi-check-lg" aria-hidden="true"></i>
+                  Succeeded
+                </span>
+              }
+              @case ('Failed') {
+                <span class="badge text-bg-danger">
+                  <i class="bi bi-x-lg" aria-hidden="true"></i>
+                  Failed
+                </span>
+              }
+              @default {
+                <span class="badge text-bg-secondary">{{ event.status }}</span>
+              }
+            }
+          </span>
+        </div>
         @if (event.detail) {
-          <p class="activity-log__detail">{{ event.detail }}</p>
+          <p class="activity-log__detail small text-body-secondary mb-0 mt-1">{{ event.detail }}</p>
         }
       </div>
     }

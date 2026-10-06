@@ -1,10 +1,22 @@
 using Microsoft.EntityFrameworkCore;
 using Pgvector;
 using Pgvector.EntityFrameworkCore;
+using RagChatDemo.IngestionWorker.Confluence;
 using RagChatDemo.McpServer.Tools;
 using RagChatDemo.Shared.Data;
 
 namespace RagChatDemo.McpServer.Tests;
+
+internal sealed class FakeConfluenceClient(params ConfluencePage[] pages) : IConfluenceClient
+{
+    private readonly Dictionary<string, ConfluencePage> _pagesById = new(pages.ToDictionary(p => p.ExternalId));
+
+    public Task<IReadOnlyList<ConfluencePage>> GetPagesAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ConfluencePage>>(pages);
+
+    public Task<ConfluencePage?> GetPageByIdAsync(string externalId, CancellationToken cancellationToken = default) =>
+        Task.FromResult(_pagesById.GetValueOrDefault(externalId));
+}
 
 /// <summary>
 /// Integration test against a real Postgres+pgvector instance (see repo memory /
@@ -18,6 +30,7 @@ public class SearchKnowledgeBaseToolTests : IAsyncLifetime
     private RagChatDemoDbContext _db = null!;
     private Guid _documentId;
     private Guid _chunkId;
+    private FakeConfluenceClient _confluence = null!;
 
     public async Task InitializeAsync()
     {
@@ -49,6 +62,13 @@ public class SearchKnowledgeBaseToolTests : IAsyncLifetime
         });
 
         await _db.SaveChangesAsync();
+
+        _confluence = new FakeConfluenceClient(new ConfluencePage(
+            $"contract-test-{_documentId}",
+            "VPN Password Reset (live)",
+            "<p>To reset your VPN password, <strong>open the self-service portal</strong> and click 'Reset'.</p>",
+            "https://example.com/vpn-reset",
+            DateTimeOffset.UtcNow));
     }
 
     public async Task DisposeAsync()
@@ -65,16 +85,17 @@ public class SearchKnowledgeBaseToolTests : IAsyncLifetime
         // The fake embedding matches the seeded chunk exactly (cosine distance 0), so it's
         // guaranteed to rank first regardless of whatever else is in the table.
         var sameEmbedding = new Vector(CreateTestEmbedding());
-        var tool = new SearchKnowledgeBaseTool(_db, new FakeOllamaClient(sameEmbedding));
+        var tool = new SearchKnowledgeBaseTool(_db, new FakeOllamaClient(sameEmbedding), _confluence);
 
         var result = await tool.SearchKnowledgeBaseAsync("How do I reset my VPN password?", topK: 5);
 
         Assert.NotEmpty(result.Results);
         var topHit = result.Results[0];
         Assert.Equal(_chunkId, topHit.ChunkId);
-        Assert.Equal("VPN Password Reset", topHit.DocumentTitle);
-        Assert.Equal("https://example.com/vpn-reset", topHit.SourceUrl);
         Assert.True(topHit.Score > 0.99);
+        // Content should be the LIVE version from Confluence (not the cached chunk text)
+        Assert.Contains("self-service portal", topHit.Text);
+        Assert.DoesNotContain("&lt;", topHit.Text);
     }
 
     // A non-uniform-component vector, so it won't collide (same cosine direction) with other
