@@ -28,7 +28,9 @@ export class ChatSignalrService {
   async sendMessage(text: string): Promise<void> {
     await this.ensureConnected();
     // Keep activity hub alive / connected for live McpTool + Generation events.
-    void this.activitySignalr.connect();
+    await this.activitySignalr.connect();
+    // Scope the activity log to this request only.
+    await this.activitySignalr.beginRequest();
 
     this.messages.update((messages) => [
       ...messages,

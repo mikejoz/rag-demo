@@ -38,6 +38,27 @@ export class ActivitySignalrService {
     }
   }
 
+  private requestFloor: number | null = null;
+
+  /**
+   * Starts a new support request: clears the log and ignores everything already buffered,
+   * plus ingestion events, so only this request's activity is shown.
+   */
+  async beginRequest(): Promise<void> {
+    let floor = Math.max(0, ...this.events().map((e) => e.sequence));
+    if (this.connection?.state === signalR.HubConnectionState.Connected) {
+      try {
+        const recent = await this.connection.invoke<ActivityEvent[]>('GetRecent');
+        floor = Math.max(floor, ...(recent ?? []).map((e) => e.sequence));
+      } catch (error: unknown) {
+        console.warn('Could not read activity buffer to scope the request', error);
+      }
+    }
+
+    this.requestFloor = floor;
+    this.events.set([]);
+  }
+
   /** Pull the server buffer (after chat completes or reconnect). */
   async refresh(): Promise<void> {
     await this.connect();
@@ -81,7 +102,12 @@ export class ActivitySignalrService {
     }
   }
 
-  private mergeEvents(incoming: ActivityEvent[]): void {
+  private mergeEvents(all: ActivityEvent[]): void {
+    const floor = this.requestFloor;
+    const incoming =
+      floor === null
+        ? all
+        : all.filter((e) => e.sequence > floor && e.category !== 'Ingestion');
     if (incoming.length === 0) {
       return;
     }
