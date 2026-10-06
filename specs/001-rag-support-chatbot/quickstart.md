@@ -40,12 +40,15 @@ cd deploy/scripts
 kubectl get pods -n rag-demo
 ```
 
-Access the frontend via `kubectl port-forward` or the chart's configured local-only ingress
-host, then repeat the ingestion-trigger + chat verification above against the cluster.
+Access the services with the port-forward script, which re-establishes each forward when a pod is
+restarted (plain `kubectl port-forward` dies with its pod). Then repeat the ingestion-trigger + chat
+verification above against the cluster.
 
 ```powershell
-kubectl port-forward -n rag-demo svc/frontend 8080:80
-# then open http://localhost:8080
+./deploy/scripts/port-forward.ps1
+# UI:      http://localhost:8080
+# Swagger: http://localhost:8081/swagger
+# Hangfire: http://localhost:8082/hangfire
 ```
 
 ## Verification checklist (maps to spec Success Criteria)

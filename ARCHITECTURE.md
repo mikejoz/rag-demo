@@ -510,6 +510,6 @@ Shared configuration is managed through a Kubernetes ConfigMap (`rag-chat-demo-c
 
 - All pods use **one replica** — this is a demo architecture, not production-hardened.
 - PostgreSQL has a **persistent volume claim** to survive pod restarts; other services are stateless.
-- The ingestion job runs **hourly**. Use the Hangfire dashboard (`/hangfire` on the ingestion-worker port-forward) to trigger it manually.
+- The ingestion job runs **hourly**. Use the Hangfire dashboard (`/hangfire` on the ingestion-worker, http://localhost:8082/hangfire via `deploy/scripts/port-forward.ps1`) to trigger it manually.
 - If the Confluence stub is updated (e.g., via `PUT /wiki/api/v2/pages/{id}`), the next hourly run will detect the changed timestamp and re-ingest that page.
 - Ollama runs as a standalone Docker container on the host — not inside the K8s cluster — accessed via `host.docker.internal`.
