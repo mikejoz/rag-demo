@@ -37,11 +37,11 @@ spec:
               value: "Host=postgres;Port=5432;Database=ragchatdemo;Username=postgres;Password=$(POSTGRES_PASSWORD)"
           readinessProbe:
             httpGet:
-              path: /
+              path: /health/ready
               port: 8080
             initialDelaySeconds: 5
           livenessProbe:
             httpGet:
-              path: /
+              path: /health/live
               port: 8080
             initialDelaySeconds: 15

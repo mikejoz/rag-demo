@@ -77,7 +77,7 @@ The public-facing backend hosting SignalR hubs, RAG orchestration, and OpenAPI d
 | Feature | Details |
 |---------|---------|
 | Hubs | `/hubs/chat` (chat streaming), `/hubs/activity` (live telemetry) |
-| Endpoints | `GET /` (health check), `POST /internal/activity-events`, `GET /swagger`, `GET /openapi/v1.json` (dev only) |
+| Endpoints | `GET /health` (all), `GET /health/live` (liveness), `GET /health/ready` (readiness), `POST /internal/activity-events`, `GET /swagger`, `GET /openapi/v1.json` (dev only) |
 | RAG Orchestrator | Streams tokens via SignalR, dispatches tool calls to MCP server, emits activity events |
 | MCP Client | Connects to McpServer via `HttpClientTransport` for `search_knowledge_base` and `create_support_ticket` |
 | Dev | Swagger UI + OpenAPI spec (gated behind `ASPNETCORE_ENVIRONMENT=Development`) |

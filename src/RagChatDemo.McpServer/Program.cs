@@ -1,11 +1,18 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using RagChatDemo.IngestionWorker.Confluence;
 using RagChatDemo.McpServer.Tools;
 using RagChatDemo.Shared.Activity;
 using RagChatDemo.Shared.Data;
+using RagChatDemo.Shared.Diagnostics;
 using RagChatDemo.Shared.Ollama;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<RagChatDemoDbContext>("database", tags: ["ready"])
+    .AddCheck<AlwaysHealthyHealthCheck>("self", tags: new[] { "live" });
 
 builder.Services.AddDbContext<RagChatDemoDbContext>(options =>
     options.UseNpgsql(
@@ -56,7 +63,9 @@ using (var scope = app.Services.CreateScope())
     scope.ServiceProvider.GetRequiredService<RagChatDemoDbContext>().Database.Migrate();
 }
 
-app.MapGet("/", () => "Hello World!");
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = tag => tag.Tags.Contains("live") });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = tag => tag.Tags.Contains("ready") });
 
 app.MapMcp();
 

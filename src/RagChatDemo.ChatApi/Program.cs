@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using RagChatDemo.ChatApi.Activity;
 using RagChatDemo.ChatApi.Chat;
 using RagChatDemo.ChatApi.Hubs;
@@ -7,6 +9,7 @@ using RagChatDemo.ChatApi.Mcp;
 using RagChatDemo.Shared.Activity;
 using RagChatDemo.Shared.Contracts;
 using RagChatDemo.Shared.Data;
+using RagChatDemo.Shared.Diagnostics;
 using RagChatDemo.Shared.Ollama;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +20,10 @@ if (builder.Environment.IsDevelopment())
 }
 
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<RagChatDemoDbContext>("database", tags: ["ready"])
+    .AddCheck<AlwaysHealthyHealthCheck>("self", tags: new[] { "live" });
 
 builder.Services.AddDbContext<RagChatDemoDbContext>(options =>
     options.UseNpgsql(
@@ -65,7 +72,9 @@ if (app.Environment.IsDevelopment())
     app.MapGet("/swagger", () => Results.Content(swaggerHtml, "text/html"));
 }
 
-app.MapGet("/", () => "Hello World!");
+app.MapHealthChecks("/health");
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = tag => tag.Tags.Contains("live") });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = tag => tag.Tags.Contains("ready") });
 
 app.MapHub<ActivityHub>("/hubs/activity");
 app.MapHub<ChatHub>("/hubs/chat");
@@ -74,7 +83,13 @@ app.MapPost("/internal/activity-events", async (ActivityEventDto activityEvent, 
 {
     await publisher.PublishAsync(activityEvent);
     return Results.Accepted();
-});
+})
+.WithSummary("Publish an activity event")
+.WithDescription(
+    "Internal endpoint used by the MCP server and ingestion worker to report activity. " +
+    "The event is assigned a sequence number, buffered (last 50 events), and broadcast to all " +
+    "clients connected to the /hubs/activity SignalR hub. Returns 202 Accepted.")
+.Produces(StatusCodes.Status202Accepted);
 
 app.Run();
 

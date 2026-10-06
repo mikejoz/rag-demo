@@ -22,11 +22,11 @@ spec:
             - containerPort: 8080
           readinessProbe:
             httpGet:
-              path: /
+              path: /health/ready
               port: 8080
             initialDelaySeconds: 3
           livenessProbe:
             httpGet:
-              path: /
+              path: /health/live
               port: 8080
             initialDelaySeconds: 10

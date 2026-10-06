@@ -38,11 +38,11 @@ spec:
                   key: confluence-api-token
           readinessProbe:
             httpGet:
-              path: /
+              path: /health/ready
               port: 8080
             initialDelaySeconds: 5
           livenessProbe:
             httpGet:
-              path: /
+              path: /health/live
               port: 8080
             initialDelaySeconds: 15
