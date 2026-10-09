@@ -11,7 +11,9 @@ public static class ConfluenceWebUrl
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(webui);
 
-        if (Uri.TryCreate(webui, UriKind.Absolute, out var absolute))
+        // On Linux "/path" parses as an absolute file:// URI, so require http(s).
+        if (Uri.TryCreate(webui, UriKind.Absolute, out var absolute)
+            && (absolute.Scheme == Uri.UriSchemeHttp || absolute.Scheme == Uri.UriSchemeHttps))
         {
             return absolute.ToString();
         }

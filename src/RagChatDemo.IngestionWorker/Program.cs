@@ -1,4 +1,5 @@
 using Hangfire;
+using RagChatDemo.IngestionWorker;
 using Hangfire.PostgreSql;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
@@ -70,7 +71,8 @@ app.MapHealthChecks("/health");
 app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = tag => tag.Tags.Contains("live") });
 app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = tag => tag.Tags.Contains("ready") });
 
-app.UseHangfireDashboard("/hangfire");
+// Only reachable via kubectl port-forward (ClusterIP service), which Hangfire's default local-only filter rejects.
+app.UseHangfireDashboard("/hangfire", new DashboardOptions { Authorization = [new AllowAllDashboardAuthorizationFilter()] });
 
 RecurringJob.AddOrUpdate<IngestionJob>(
     "knowledge-base-ingestion", job => job.RunAsync(CancellationToken.None), Cron.Hourly);
