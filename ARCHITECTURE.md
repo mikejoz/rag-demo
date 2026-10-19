@@ -31,6 +31,7 @@ RagChatDemo is a full-stack RAG (Retrieval-Augmented Generation) chat system. It
 | Background Jobs | Hangfire (.NET job scheduler) |
 | LLM & Embeddings | Ollama (`qwen3.6:27b`, `nomic-embed-text`) |
 | Vector DB | PostgreSQL 16 + pgvector (HNSW cosine index) |
+| Re-ranking | `BAAI/bge-reranker-base` cross-encoder via Hugging Face TEI (CPU); Cohere optional |
 | Tool Calling | Model Context Protocol (MCP) over HTTP |
 | Knowledge Source | Confluence REST API (stub or cloud) |
 | Deployment | Helm charts → Docker Desktop Kubernetes |
@@ -49,6 +50,8 @@ RagChatDemo/
 │   ├── RagChatDemo.IngestionWorker/  # Hangfire ingestion pipeline
 │   ├── RagChatDemo.McpServer/        # MCP tool server
 │   └── RagChatDemo.ConfluenceStub/   # In-memory Confluence mock
+├── tests/                            # xUnit projects (Shared, ChatApi, IngestionWorker, McpServer)
+├── scripts/rerank-eval/              # Re-ranking on/off evaluation (questions + runner)
 ├── frontend/rag-chat-demo/           # Angular frontend
 ├── deploy/
 │   ├── helm/                         # Helm charts per service
@@ -65,6 +68,7 @@ Common infrastructure shared across all backend services.
 | `Data/RagChatDemoDbContext` | EF Core context for `SourceDocuments` and `Chunks`; enables pgvector extension; configures HNSW cosine index on 768-dim vector column |
 | `Data/SourceDocument` | Confluence page entity (external ID, title, plain-text content, URL, timestamps) |
 | `Data/Chunk` | Text segment with ordinal and `Pgvector.Vector<768>` embedding |
+| `Reranking/` | `IReranker` with `TeiReranker`, `CohereReranker`, `PassThroughReranker`; `RerankingService` (dedup, score, MinScore, top N, timeout/fallback); `RerankOptions` (`Reranker` section) |
 | `Chunking/TextChunker` | Paragraph-aware chunker (2 000 char max, 10% overlap) |
 | `Ollama/OllamaClient` | HTTP client for Ollama embeddings and streaming chat APIs |
 | `Contracts/` | Chat messages, citations, activity events, MCP results |
@@ -101,8 +105,23 @@ Standalone Model Context Protocol HTTP server exposing tools the LLM can invoke.
 | Feature | Details |
 |---------|---------|
 | Transport | HTTP (via `ModelContextProtocol.AspNetCore`) |
-| Tools | `search_knowledge_base` (pgvector cosine search + live Confluence refresh), `create_support_ticket` (stub — returns fake ticket ID) |
+| Tools | `search_knowledge_base` (pgvector candidate over-fetch + re-rank + live Confluence refresh), `create_support_ticket` (stub — returns fake ticket ID) |
 | Project Reference | Depends on `IngestionWorker` to reuse Confluence clients and ingestion infrastructure |
+
+### Reranker (`deploy/helm/reranker`)
+
+A small CPU-only Hugging Face Text Embeddings Inference (TEI) pod serving the `BAAI/bge-reranker-base`
+cross-encoder behind an HTTP `/rerank` endpoint. Used by McpServer's `RerankingService` (in
+`RagChatDemo.Shared`) to re-score candidate chunks against the question before the top N are returned.
+No GPU required; model weights are cached so repeated deploys don't need network access.
+
+`IReranker` providers (selected by `Reranker:Provider`):
+
+| Provider | Role |
+|----------|------|
+| `Tei` (default) | Calls the local reranker pod's `/rerank` endpoint — fully offline |
+| `Cohere` (opt-in) | Calls the hosted Cohere rerank API; API key supplied only via a Kubernetes Secret / user-secrets reference, never a literal |
+| `None` | Pass-through — returns candidates in their existing vector-similarity order (re-ranking disabled) |
 
 ### Confluence Stub (`RagChatDemo.ConfluenceStub`)
 
@@ -135,15 +154,19 @@ In-memory mock of the Confluence REST API for offline development.
 │  │                  │            │                   │         │
 │  │ • ChatHub        │            │ • search_kb       │         │
 │  │ • ActivityHub    │            │ • create_ticket   │         │
-│  │ • RagOrchestrator│            └────────┬──────────┘         │
-│  │ • Swagger UI     │                     │                    │
-│  └───┬──────┬───────┘                     │                    │
-│       │      │                            │                    │
-│       │      │   HTTP                     ▼                    │
-│       │      │ ◄──────────   ┌──────────────────┐              │
-│       │      └─────────────► │  confluence-stub │              │
-│       │                      │  :8080            │              │
-│       │                      └──────────────────┘              │
+│  │ • RagOrchestrator│            └───┬──────┬───────┘         │
+│  │ • Swagger UI     │                │      │                  │
+│  └───┬──────┬───────┘                │      │ HTTP             │
+│       │      │                       │      ▼                  │
+│       │      │   HTTP                │  ┌──────────────────┐   │
+│       │      │ ◄──────────   ┌───────┘  │  reranker:80     │   │
+│       │      └─────────────► │          │  (TEI, bge-      │   │
+│       │                      │          │   reranker-base) │   │
+│       │                      ▼          └──────────────────┘   │
+│       │               ┌──────────────────┐                     │
+│       │               │  confluence-stub │                     │
+│       │               │  :8080            │                     │
+│       │               └──────────────────┘                     │
 │       │                                                       │
 │       ▼      ▼                                                │
 │  ┌──────────────────────┐    ┌──────────────────┐             │
@@ -199,13 +222,16 @@ Local user message added              ChatHub.SendMessage()
                             Embed query via Ollama     Generate stub ticket ID
                                   │                     │
                         pgvector cosine search          Return { id, status }
-                        (max dist 0.4)                   │
+                        (max dist 0.4; 0.5 w/ rerank)  │
                                   │                      │
-                  Live Confluence refresh              Append tool result
-                  for matching pages                   to conversation
+                  Re-rank via reranker pod             Append tool result
+                  (top N of 20 candidates)             to conversation
+                                  │                      │
+                  Live Confluence refresh              │
+                  for kept pages                       │
                                   │                      │
                                   ▼                      │
-                 Return top-5 chunks                     │
+                 Return re-ranked chunks                 │
                  with title, URL, score, text             │
                                   │                      │
                                   └──────────┬───────────┘
@@ -225,7 +251,7 @@ Local user message added              ChatHub.SendMessage()
 **Key details:**
 
 - The orchestrator currently handles **one tool call per turn** (no multi-turn loops in the same request).
-- If pgvector returns no results above the similarity threshold (~0.6), the user sees: *"I couldn't find any relevant information in the knowledge base to answer that question."*
+- If pgvector returns no results above the similarity threshold (~0.6, or ~0.5 when re-ranking widens the candidate pool), the user sees: *"I couldn't find any relevant information in the knowledge base to answer that question."*
 - Citations (source document titles, URLs, and snippets) are included in the `ResponseComplete` event.
 
 ---
@@ -276,16 +302,20 @@ For each page:
 
 ## RAG Retrieval Flow
 
-The `search_knowledge_base` MCP tool performs vector search:
+The `search_knowledge_base` MCP tool performs vector search, re-ranking, and live refresh:
 
 | Step | Details |
 |------|---------|
 | 1. Embed query | Ollama `nomic-embed-text` produces a 768-dim vector from the user's question |
 | 2. Cosine search | PostgreSQL pgvector operator `<=>` on `Chunks.Embedding` column with HNSW index |
-| 3. Threshold filter | Maximum cosine distance of **0.4** (minimum similarity ≈ **0.6**) |
-| 4. Rank + limit | Ordered by cosine distance; top **5** chunks returned |
-| 5. Enrich results | Extract document title and source URL from `SourceDocuments` join |
-| 6. Live refresh | For each unique matching page ID, attempt a live fetch from Confluence; use fresh text if available, fall back to cached chunk text |
+| 3. Threshold filter | Maximum cosine distance of **0.4** (minimum similarity ≈ **0.6**); widened to `Reranker:CandidateMaxCosineDistance` (default **0.5**) when re-ranking is enabled so the re-ranker has real candidates to reorder |
+| 4. Candidate over-fetch | Ordered by cosine distance; top `Reranker:CandidateCount` (default **20**, or `topK` when re-ranking is disabled) chunks fetched |
+| 5. Re-rank | `RerankingService` scores every candidate against the question via `IReranker` (TEI/Cohere/None), drops chunks below `Reranker:MinScore`, and keeps the top `min(Reranker:TopN, topK)`; on error, timeout, or when disabled it falls back to the original vector-similarity order |
+| 6. Enrich results | Extract document title and source URL from `SourceDocuments` join |
+| 7. Live refresh | For each unique page ID among the **kept** chunks only, attempt a live fetch from Confluence; use fresh text if available, fall back to cached chunk text |
+
+Re-ranking emits a `rerank` activity event (candidates in, kept, elapsed time, before/after order and scores) or, on
+failure, a `rerank_fallback` event (category: retrieval) so the step is visible in the live activity log.
 
 ### Result Contract
 
@@ -294,8 +324,19 @@ interface KnowledgeBaseSearchHit {
     chunkId: string;
     documentTitle: string;
     sourceUrl: string;
-    score: number;        // cosine similarity (0..1)
+    score: number;        // re-rank relevance (0..1) when re-ranking succeeded, else cosine similarity
     text: string;         // chunk or live Confluence content
+}
+
+interface RerankOutcome {            // present only when Reranker:Enabled=true
+    provider: 'Tei' | 'Cohere' | 'None';
+    candidatesIn: number;
+    kept: number;
+    elapsedMs: number;
+    fellBack: boolean;
+    fallbackReason: string | null;
+    before: { title: string; score: number }[];   // vector-similarity order/scores
+    after: { title: string; score: number }[];     // final re-ranked order/scores
 }
 ```
 
@@ -345,6 +386,7 @@ Hangfire uses its own schema within the same `ragchatdemo` database for job queu
 | **Hangfire** | Background job scheduling (hourly ingestion recurrence) | In-process within `ingestion-worker` pod; dashboard at `/hangfire` |
 | **SignalR** | Real-time chat streaming and activity telemetry | Hubs hosted in `chat-api:8080`; auto-reconnect with backoff |
 | **MCP (Model Context Protocol)** | Structured tool calling between ChatApi ↔ McpServer | HTTP transport on `mcp-server:8080` |
+| **Reranker (TEI)** | Cross-encoder re-scoring of candidate chunks (`BAAI/bge-reranker-base`) | K8s service `reranker:80`; CPU-only, `Reranker:Provider=Tei` is the default; `Cohere` is an opt-in hosted alternative |
 | **Confluence** | Knowledge base content source | Stub at `confluence-stub:8080` or real Confluence Cloud via REST API v2 |
 
 ---
@@ -378,7 +420,7 @@ ChatApi acts as an **MCP client**; McpServer acts as an **MCP server**. Communic
 
 | Tool | Description |
 |------|-------------|
-| `search_knowledge_base(query: string, topK?: number)` | Embeds query → pgvector cosine search → live Confluence refresh → returns ranked hits with citations |
+| `search_knowledge_base(query: string, topK?: number)` | Embeds query → pgvector candidate over-fetch (`CandidateCount`) → re-rank → top N → live Confluence refresh → returns ranked hits with citations and an optional `rerank` outcome |
 | `create_support_ticket(title: string, description: string)` | Stub — generates sequential ticket IDs (e.g., `TICKET-1001`) with status `created` |
 
 ### Tool Dispatch Flow
@@ -434,6 +476,7 @@ All services are deployed as single-replica Deployments with ClusterIP Services 
 | `postgres` | `pgvector/pgvector` | 5432 | PostgreSQL + pgvector vector store + Hangfire storage; persistent volume claim |
 | `confluence-stub` | `ragchatdemo/confluence-stub:local` | 8080 | In-memory Confluence mock API |
 | `mcp-server` | `ragchatdemo/mcp-server:local` | 8080 | MCP HTTP tool server |
+| `reranker` | `ghcr.io/huggingface/text-embeddings-inference` (CPU) | 80 | Cross-encoder re-ranking (`BAAI/bge-reranker-base`), single replica; CPU request 2 / limit 8, memory limit 4Gi (~0.8s for 20 chunks) |
 | `ingestion-worker` | `ragchatdemo/ingestion-worker:local` | 8080 | Hangfire jobs + dashboard |
 | `chat-api` | `ragchatdemo/chat-api:local` | 8080 | SignalR hubs, RAG orchestration, OpenAPI |
 | `frontend` | `ragchatdemo/frontend:local` | 80 | Angular SPA with SignalR proxy |
@@ -451,7 +494,8 @@ Browser ──► frontend:80
               │               │
               │               ├─► postgres:5432  (vector search)
               │               ├─► Ollama:11434   (query embedding)
-              │               └─► confluence-stub:8080 (live content refresh)
+              │               ├─► reranker:80    (candidate re-ranking, TEI)
+              │               └─► confluence-stub:8080 (live content refresh, kept chunks only)
               │
 ingestion-worker:8080
     │
@@ -487,6 +531,13 @@ Shared configuration is managed through a Kubernetes ConfigMap (`rag-chat-demo-c
 | `Ollama__EmbedModel` | Embedding model name (`nomic-embed-text`) |
 | `Ollama__ChatModel` | Chat completion model name (`qwen3.6:27b`) |
 | `Mcp__ServerUrl` | MCP server endpoint (`http://mcp-server:8080`) |
+| `Reranker__Provider` | `Tei` (default, local), `Cohere` (opt-in hosted), or `None` (disabled) |
+| `Reranker__CandidateCount` | Chunks fetched by vector search before re-ranking (default **20**) |
+| `Reranker__TopN` | Final chunk count kept after re-ranking (default **5**, also capped by the tool's `topK`) |
+| `Reranker__MinScore` | Minimum re-rank relevance score to keep a chunk (default **0** - cross-encoder scores for correct paraphrased matches can be very low, so ranking order is used instead of an absolute cutoff) |
+| `Reranker__CandidateMaxCosineDistance` | Vector cutoff applied only when re-ranking is enabled (default **0.5**; **0.4** otherwise) |
+| `Reranker__TimeoutSeconds` | Re-ranker request timeout before falling back to vector order (default **3**) |
+| `Reranker__Tei__BaseUrl` | TEI reranker endpoint (`http://reranker:80`) |
 | `ChatApi__BaseUrl` | Chat API endpoint for activity publishing (`http://chat-api:8080`) |
 | `Confluence__UseStub` | `true` = use in-memory stub, `false` = real Confluence Cloud |
 | `Confluence__BaseUrl` | Confluence REST API base URL |
@@ -498,6 +549,7 @@ Shared configuration is managed through a Kubernetes ConfigMap (`rag-chat-demo-c
 |-----|---------|
 | `postgres-password` | PostgreSQL password (auto-generated on first deploy) |
 | `confluence-api-token` | Confluence Cloud API token (empty when using stub) |
+| `Reranker__Cohere__ApiKey` | Cohere rerank API key; only referenced when `Reranker__Provider=Cohere`, never a committed literal |
 
 ### Environment-Specific Flags
 
@@ -511,5 +563,8 @@ Shared configuration is managed through a Kubernetes ConfigMap (`rag-chat-demo-c
 - All pods use **one replica** — this is a demo architecture, not production-hardened.
 - PostgreSQL has a **persistent volume claim** to survive pod restarts; other services are stateless.
 - The ingestion job runs **hourly**. Use the Hangfire dashboard (`/hangfire` on the ingestion-worker, http://localhost:8082/hangfire via `deploy/scripts/port-forward.ps1`) to trigger it manually.
+- `deploy/scripts/port-forward.ps1` exposes every service on localhost (keep it in sync with `deploy/helm/`): UI `8080`, Chat API Swagger `8081/swagger`, Hangfire `8082/hangfire`, MCP server `8083`, reranker `8084` (`/health`, `/rerank`), Postgres `5432`.
+- Re-ranking quality can be checked with `scripts/rerank-eval/run-eval.ps1 -Label <name>` (32 questions; toggle with `Reranker__Enabled`); latest results are in `specs/002-rerank-search-results/quickstart.md`.
+- Tests: `dotnet test` per project under `tests/` (Shared, ChatApi, IngestionWorker, McpServer). The McpServer integration test needs Postgres on `localhost:5432` (run the port-forward script first).
 - If the Confluence stub is updated (e.g., via `PUT /wiki/api/v2/pages/{id}`), the next hourly run will detect the changed timestamp and re-ingest that page.
 - Ollama runs as a standalone Docker container on the host — not inside the K8s cluster — accessed via `host.docker.internal`.

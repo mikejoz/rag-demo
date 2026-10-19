@@ -92,4 +92,36 @@ public class ChatHubTests : IClassFixture<WebApplicationFactory<Program>>
             buffer.GetRecent(), e => e.Category == ActivityCategory.McpTool && e.Status == ActivityStatus.Succeeded);
         Assert.Equal("create_support_ticket", mcpToolEvent.Operation);
     }
+
+    [Fact]
+    public async Task SendMessage_WithSeededKnowledge_EmitsRerankActivityEvent()
+    {
+        await using var hubConnection = new HubConnectionBuilder()
+            .WithUrl(
+                new Uri(factory.Server.BaseAddress, "/hubs/chat"),
+                options => options.HttpMessageHandlerFactory = _ => factory.Server.CreateHandler())
+            .Build();
+
+        var tokens = new List<string>();
+        SourceCitationDto[]? citedSources = null;
+        var completed = new TaskCompletionSource();
+
+        hubConnection.On<Guid, string>("ResponseToken", (_, token) => tokens.Add(token));
+        hubConnection.On<Guid, SourceCitationDto[]>("ResponseComplete", (_, citations) =>
+        {
+            citedSources = citations;
+            completed.TrySetResult();
+        });
+        hubConnection.On<Guid, string>("ResponseError", (_, message) =>
+            completed.TrySetException(new InvalidOperationException(message)));
+
+        await hubConnection.StartAsync();
+        await hubConnection.SendAsync("SendMessage", "How do I reset my VPN password?");
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        var buffer = factory.Services.GetRequiredService<ActivityEventBuffer>();
+        var rerankEvent = Assert.Single(
+            buffer.GetRecent(), e => e.Category == ActivityCategory.Retrieval && e.Operation == "rerank");
+        Assert.Contains("Re-ranked 20 candidates", rerankEvent.Detail);
+    }
 }

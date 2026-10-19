@@ -17,13 +17,15 @@ internal sealed class FakeOllamaClient : IOllamaClient
         IReadOnlyList<OllamaChatMessage> messages,
         string? model = null,
         IReadOnlyList<OllamaToolDefinition>? tools = null,
+        bool? think = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         await Task.Yield();
 
         if (messages.Any(m => m.Role == "tool"))
         {
-            foreach (var token in new[] { "Open ", "the ", "self-service ", "portal." })
+            // Simulate a hybrid-reasoning model that emits <think>...</think> before the answer
+            foreach (var token in new[] { "<think>", "this is chain of thought reasoning ", "from the model", "</think>", "Open ", "the ", "self-service ", "portal." })
             {
                 await Task.Yield();
                 yield return new OllamaChatStreamChunk(token, Done: false);

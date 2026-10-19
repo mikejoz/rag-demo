@@ -42,3 +42,12 @@
   "status": "string (always \"created\" in this demo)"
 }
 ```
+
+## Feature 002 update
+
+Feature `002-rerank-search-results` adds a re-ranking stage to `search_knowledge_base`. See
+[../../002-rerank-search-results/contracts/mcp-tools.md](../../002-rerank-search-results/contracts/mcp-tools.md)
+for the current output contract: `top_k` now caps the final re-ranked count, `score` is the re-rank
+relevance (0–1) when re-ranking succeeds or the cosine similarity when it falls back/is disabled, and
+an optional `rerank` block (provider, candidate/kept counts, elapsed time, fallback status, before/after
+rankings) is added when re-ranking is enabled.

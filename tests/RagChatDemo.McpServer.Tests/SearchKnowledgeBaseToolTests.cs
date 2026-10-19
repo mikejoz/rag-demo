@@ -1,9 +1,12 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Pgvector;
 using Pgvector.EntityFrameworkCore;
 using RagChatDemo.IngestionWorker.Confluence;
 using RagChatDemo.McpServer.Tools;
 using RagChatDemo.Shared.Data;
+using RagChatDemo.Shared.Reranking;
 
 namespace RagChatDemo.McpServer.Tests;
 
@@ -22,6 +25,12 @@ internal sealed class FakeConfluenceClient(params ConfluencePage[] pages) : ICon
 /// Integration test against a real Postgres+pgvector instance (see repo memory /
 /// quickstart.md for how to start one locally). Not a pure unit test.
 /// </summary>
+// NOTE: An additional test exercising the reranker actually reordering results (e.g.
+// SearchKnowledgeBaseAsync_WithRerankerReversingOrder_ReturnsRerankOutcome) was intentionally
+// omitted. The IAsyncLifetime fixture below seeds only a single chunk, which is insufficient to
+// observe a reorder between two or more candidates, and adding a second seeded chunk risks
+// polluting/affecting the shared live Postgres+pgvector instance this integration test runs
+// against.
 public class SearchKnowledgeBaseToolTests : IAsyncLifetime
 {
     private const string ConnectionString =
@@ -85,7 +94,17 @@ public class SearchKnowledgeBaseToolTests : IAsyncLifetime
         // The fake embedding matches the seeded chunk exactly (cosine distance 0), so it's
         // guaranteed to rank first regardless of whatever else is in the table.
         var sameEmbedding = new Vector(CreateTestEmbedding());
-        var tool = new SearchKnowledgeBaseTool(_db, new FakeOllamaClient(sameEmbedding), _confluence);
+        var reranking = new RerankingService(
+            new PassThroughReranker(),
+            Options.Create(new RerankOptions()),
+            NullLogger<RerankingService>.Instance);
+        var tool = new SearchKnowledgeBaseTool(
+            _db,
+            new FakeOllamaClient(sameEmbedding),
+            _confluence,
+            reranking,
+            NullLogger<SearchKnowledgeBaseTool>.Instance,
+            Options.Create(new RerankOptions()));
 
         var result = await tool.SearchKnowledgeBaseAsync("How do I reset my VPN password?", topK: 5);
 

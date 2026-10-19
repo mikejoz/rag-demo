@@ -48,7 +48,7 @@ kubectl create configmap rag-chat-demo-config `
     --dry-run=client -o yaml | kubectl apply -f -
 
 # --- Helm releases, in dependency order ----------------------------------------------------
-$charts = @('postgres', 'confluence-stub', 'mcp-server', 'ingestion-worker', 'chat-api', 'frontend')
+$charts = @('postgres', 'confluence-stub', 'reranker', 'mcp-server', 'ingestion-worker', 'chat-api', 'frontend')
 foreach ($chart in $charts) {
     Write-Host "`nDeploying $chart..."
     helm upgrade --install $chart (Join-Path $helmDir $chart) --namespace $Namespace

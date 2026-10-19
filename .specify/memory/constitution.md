@@ -1,6 +1,7 @@
 <!--
 Sync Impact Report
-- Version change: (none) → 1.0.0 (initial ratification)
+- Version change: 1.0.0 → 1.1.0 (added port-forward script upkeep rule to Development Workflow)
+- Previous: (none) → 1.0.0 (initial ratification)
 - Modified principles: N/A (initial version)
 - Added sections: Core Principles (I-VI), Technology & Environment Constraints,
   Development Workflow, Governance
@@ -74,6 +75,9 @@ simplification MUST still satisfy Principles I-V.
   demonstrated standalone.
 - Changes that touch secret-handling, Helm values, or Kubernetes manifests require an explicit
   self-review against Principle IV before merge.
+- Any change that adds, removes, or re-ports a deployed service (a Helm chart under deploy/helm/)
+  MUST update deploy/scripts/port-forward.ps1 in the same change so every service stays reachable
+  from localhost, and update the URL list in ARCHITECTURE.md if affected.
 - Verification for each user story MUST include a manual end-to-end demo path, not just unit
   tests, since the deliverable is a live interview demonstration.
 
@@ -87,4 +91,4 @@ principles or sections, PATCH for clarifications/wording. Compliance is self-rev
 implementer at each task checkpoint; use this file as the source of truth when a decision in
 `plan.md` or `tasks.md` appears to conflict with it.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-01
+**Version**: 1.1.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-19

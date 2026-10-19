@@ -107,6 +107,25 @@ public class RagOrchestrator(IMcpToolClient mcpClient, IOllamaClient ollama, IAc
                     ActivityCategory.McpTool, toolCall.Name, ActivityStatus.Succeeded,
                     $"{searchResult.Results.Count} chunk(s) found", cancellationToken);
 
+                if (searchResult.Rerank is { } rerank)
+                {
+                    if (rerank.FellBack)
+                    {
+                        await PublishAsync(
+                            ActivityCategory.Retrieval, "rerank_fallback", ActivityStatus.Failed,
+                            $"Re-ranker unavailable ({rerank.FallbackReason}); using vector order", cancellationToken);
+                    }
+                    else
+                    {
+                        var before = string.Join("; ", rerank.Before.Select(FormatRerankedItem));
+                        var after = string.Join("; ", rerank.After.Select(FormatRerankedItem));
+                        await PublishAsync(
+                            ActivityCategory.Retrieval, "rerank", ActivityStatus.Succeeded,
+                            $"Re-ranked {rerank.CandidatesIn} candidates -> kept {rerank.Kept} in {rerank.ElapsedMs}ms. Before: [{before}] After: [{after}]",
+                            cancellationToken);
+                    }
+                }
+
                 if (searchResult.Results.Count == 0)
                 {
                     await caller.ResponseToken(messageId, NoKnowledgeFoundResponse);
@@ -139,14 +158,19 @@ public class RagOrchestrator(IMcpToolClient mcpClient, IOllamaClient ollama, IAc
         }
 
         var generatedLength = 0;
+        var filter = new ThinkTagFilter();
         try
         {
             await foreach (var chunk in ollama.StreamChatAsync(messages, cancellationToken: cancellationToken))
             {
                 if (!string.IsNullOrEmpty(chunk.ContentToken))
                 {
-                    generatedLength += chunk.ContentToken.Length;
-                    await caller.ResponseToken(messageId, chunk.ContentToken);
+                    var visible = filter.Feed(chunk.ContentToken);
+                    if (visible.Length > 0)
+                    {
+                        generatedLength += visible.Length;
+                        await caller.ResponseToken(messageId, visible);
+                    }
                 }
             }
         }
@@ -174,6 +198,8 @@ public class RagOrchestrator(IMcpToolClient mcpClient, IOllamaClient ollama, IAc
     private async Task<IReadOnlyList<OllamaToolCall>> StreamDirectAnswerOrCollectToolCallsAsync(
         IReadOnlyList<OllamaChatMessage> messages, Guid messageId, IChatClient caller, CancellationToken cancellationToken)
     {
+        var filter = new ThinkTagFilter();
+
         await foreach (var chunk in ollama.StreamChatAsync(messages, tools: Tools, cancellationToken: cancellationToken))
         {
             if (chunk.ToolCalls is { Count: > 0 })
@@ -183,12 +209,19 @@ public class RagOrchestrator(IMcpToolClient mcpClient, IOllamaClient ollama, IAc
 
             if (!string.IsNullOrEmpty(chunk.ContentToken))
             {
-                await caller.ResponseToken(messageId, chunk.ContentToken);
+                var visible = filter.Feed(chunk.ContentToken);
+                if (visible.Length > 0)
+                {
+                    await caller.ResponseToken(messageId, visible);
+                }
             }
         }
 
         return [];
     }
+
+    private static string FormatRerankedItem(RerankedItemDto item) =>
+        $"{item.Title} (score:{item.Score.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture)})";
 
     private static Dictionary<string, object?> ParseArguments(string argumentsJson)
     {

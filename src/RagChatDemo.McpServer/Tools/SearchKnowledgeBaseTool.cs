@@ -9,6 +9,8 @@ using RagChatDemo.Shared.Contracts;
 using RagChatDemo.Shared.Data;
 using RagChatDemo.Shared.Ollama;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using RagChatDemo.Shared.Reranking;
 
 namespace RagChatDemo.McpServer.Tools;
 
@@ -17,7 +19,9 @@ public sealed class SearchKnowledgeBaseTool(
     RagChatDemoDbContext db,
     IOllamaClient ollama,
     IConfluenceClient confluence,
-    ILogger<SearchKnowledgeBaseTool> logger)
+    RerankingService reranking,
+    ILogger<SearchKnowledgeBaseTool> logger,
+    IOptions<RerankOptions> rerankOptions)
 {
     private static readonly Regex HtmlTagRegex = new(@"<[^>]+>", RegexOptions.Compiled);
     private static readonly Regex WhitespaceRegex = new(@"\s+", RegexOptions.Compiled);
@@ -31,12 +35,20 @@ public sealed class SearchKnowledgeBaseTool(
     {
         var queryEmbedding = await ollama.GetEmbeddingAsync(query, cancellationToken);
 
-        const float maxCosineDistance = 0.4f; // minimum similarity threshold: 1 - 0.4 = 0.6 (60%)
+        const float defaultMaxCosineDistance = 0.4f; // minimum similarity threshold: 1 - 0.4 = 0.6 (60%)
+
+        var maxCosineDistance = rerankOptions.Value.Enabled
+            ? (float)rerankOptions.Value.CandidateMaxCosineDistance
+            : defaultMaxCosineDistance;
+
+        var candidateCount = rerankOptions.Value.Enabled
+            ? Math.Max(topK, rerankOptions.Value.CandidateCount)
+            : topK;
 
         var hits = await db.Chunks
             .Where(c => c.Embedding.CosineDistance(queryEmbedding) <= maxCosineDistance)
             .OrderBy(c => c.Embedding.CosineDistance(queryEmbedding))
-            .Take(topK)
+            .Take(candidateCount)
             .Select(c => new
             {
                 ChunkId = c.Id,
@@ -48,8 +60,20 @@ public sealed class SearchKnowledgeBaseTool(
             })
             .ToListAsync(cancellationToken);
 
+        var candidates = hits.Select(h => new RerankCandidate(h.ChunkId, h.Title, h.SourceUrl, h.CachedText, 1 - h.Distance)).ToList();
+
+        var rerankResult = await reranking.RerankAsync(query, candidates, topK, cancellationToken);
+        var kept = rerankResult.Items;
+
+        if (kept.Count == 0)
+        {
+            return new SearchKnowledgeBaseResult([], rerankResult.Outcome);
+        }
+
+        var chunkIdToExternalId = hits.ToDictionary(h => h.ChunkId, h => h.ExternalId);
+
         // Collect unique page IDs for live fetch (avoid duplicate calls for hits from the same page)
-        var pageIdsToFetch = hits.Select(h => h.ExternalId).Distinct().ToList();
+        var pageIdsToFetch = kept.Select(k => chunkIdToExternalId[k.Candidate.ChunkId]).Distinct().ToList();
         var freshPages = new Dictionary<string, string>();
 
         foreach (var pageId in pageIdsToFetch)
@@ -80,19 +104,20 @@ public sealed class SearchKnowledgeBaseTool(
             logger.LogInformation("Live refresh: {Fresh}/{Total} pages updated from Confluence", freshCount, pageIdsToFetch.Count);
         }
 
-        var results = hits
-            .Select(h =>
+        var results = kept
+            .Select(item =>
             {
                 // Use fresh content if available, otherwise fall back to cached chunk text
-                string text = freshPages.TryGetValue(h.ExternalId, out var liveContent)
+                var externalId = chunkIdToExternalId[item.Candidate.ChunkId];
+                string text = freshPages.TryGetValue(externalId, out var liveContent)
                     ? liveContent
-                    : h.CachedText;
+                    : item.Candidate.Text;
 
-                return new KnowledgeBaseSearchHit(h.ChunkId, h.Title, h.SourceUrl, 1 - h.Distance, text);
+                return new KnowledgeBaseSearchHit(item.Candidate.ChunkId, item.Candidate.Title, item.Candidate.SourceUrl, item.Score, text);
             })
             .ToArray();
 
-        return new SearchKnowledgeBaseResult(results);
+        return new SearchKnowledgeBaseResult(results, rerankResult.Outcome);
     }
 
     private static string StripHtml(string html)

@@ -10,5 +10,6 @@
     <Project Path="tests/RagChatDemo.ChatApi.Tests/RagChatDemo.ChatApi.Tests.csproj" />
     <Project Path="tests/RagChatDemo.IngestionWorker.Tests/RagChatDemo.IngestionWorker.Tests.csproj" />
     <Project Path="tests/RagChatDemo.McpServer.Tests/RagChatDemo.McpServer.Tests.csproj" />
+    <Project Path="tests/RagChatDemo.Shared.Tests/RagChatDemo.Shared.Tests.csproj" />
   </Folder>
 </Solution>

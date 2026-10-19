@@ -1,0 +1,17 @@
+image:
+  repository: ghcr.io/huggingface/text-embeddings-inference
+  tag: cpu-1.8
+  pullPolicy: IfNotPresent
+
+service:
+  port: 80
+
+model: BAAI/bge-reranker-base
+
+resources:
+  requests:
+    cpu: "2"
+    memory: 1Gi
+  limits:
+    cpu: "8"
+    memory: 4Gi

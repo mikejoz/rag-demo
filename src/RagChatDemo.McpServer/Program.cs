@@ -7,6 +7,7 @@ using RagChatDemo.Shared.Activity;
 using RagChatDemo.Shared.Data;
 using RagChatDemo.Shared.Diagnostics;
 using RagChatDemo.Shared.Ollama;
+using RagChatDemo.Shared.Reranking;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -50,6 +51,33 @@ builder.Services.AddScoped<IConfluenceClient>(sp =>
         ? sp.GetRequiredService<ConfluenceStubClient>()
         : sp.GetRequiredService<ConfluenceCloudClient>();
 });
+
+builder.Services.Configure<RerankOptions>(builder.Configuration.GetSection(RerankOptions.SectionName));
+builder.Services.AddScoped<RerankingService>();
+
+var rerankerProvider = builder.Configuration["Reranker:Provider"] ?? "Tei";
+if (string.Equals(rerankerProvider, "Cohere", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddHttpClient<IReranker, CohereReranker>((sp, client) =>
+    {
+        var baseUrl = sp.GetRequiredService<IConfiguration>()["Reranker:Cohere:BaseUrl"] ?? "https://api.cohere.com";
+        client.BaseAddress = new Uri(baseUrl);
+        client.Timeout = TimeSpan.FromSeconds(30);
+    });
+}
+else if (string.Equals(rerankerProvider, "None", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton<IReranker, PassThroughReranker>();
+}
+else
+{
+    builder.Services.AddHttpClient<IReranker, TeiReranker>((sp, client) =>
+    {
+        var baseUrl = sp.GetRequiredService<IConfiguration>()["Reranker:Tei:BaseUrl"] ?? "http://reranker:80";
+        client.BaseAddress = new Uri(baseUrl);
+        client.Timeout = TimeSpan.FromSeconds(30);
+    });
+}
 
 builder.Services.AddMcpServer()
     .WithHttpTransport()

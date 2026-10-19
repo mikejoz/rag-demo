@@ -36,6 +36,26 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.secretName }}
                   key: confluence-api-token
+            - name: Reranker__Provider
+              value: "{{ .Values.reranker.provider }}"
+            - name: Reranker__CandidateCount
+              value: "{{ .Values.reranker.candidateCount }}"
+            - name: Reranker__TopN
+              value: "{{ .Values.reranker.topN }}"
+            - name: Reranker__MinScore
+              value: "{{ .Values.reranker.minScore }}"
+            - name: Reranker__CandidateMaxCosineDistance
+              value: "{{ .Values.reranker.candidateMaxCosineDistance }}"
+            - name: Reranker__TimeoutSeconds
+              value: "{{ .Values.reranker.timeoutSeconds }}"
+            - name: Reranker__Tei__BaseUrl
+              value: "{{ .Values.reranker.teiBaseUrl }}"
+            - name: Reranker__Cohere__ApiKey
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretName }}
+                  key: cohere-api-key
+                  optional: true
           readinessProbe:
             httpGet:
               path: /health/ready

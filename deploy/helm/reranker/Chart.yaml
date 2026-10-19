@@ -1,0 +1,6 @@
+apiVersion: v2
+name: reranker
+description: Hugging Face Text Embeddings Inference reranker service for RagChatDemo
+type: application
+version: 0.1.0
+appVersion: "1.0"

@@ -24,7 +24,11 @@ internal sealed class FakeMcpToolClient : IMcpToolClient
             [
                 new KnowledgeBaseSearchHit(
                     Guid.NewGuid(), "VPN Password Reset", "https://example.com/vpn-reset", 0.95, "Open the self-service portal and click Reset."),
-            ]),
+            ],
+            new RerankOutcomeDto(
+                "Tei", 20, 1, 42, false, null,
+                [new RerankedItemDto("VPN Password Reset", 0.80)],
+                [new RerankedItemDto("VPN Password Reset", 0.95)])),
         };
 
         return Task.FromResult(new CallToolResult { StructuredContent = JsonSerializer.SerializeToElement(result, JsonOptions) });
