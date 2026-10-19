@@ -14,6 +14,7 @@ internal sealed class FakeOllamaClient : IOllamaClient
         IReadOnlyList<OllamaChatMessage> messages,
         string? model = null,
         IReadOnlyList<OllamaToolDefinition>? tools = null,
+        bool? think = null,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException();
 }

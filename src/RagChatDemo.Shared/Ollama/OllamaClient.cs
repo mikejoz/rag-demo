@@ -24,13 +24,15 @@ public class OllamaClient(HttpClient httpClient, IOptions<OllamaOptions> options
         IReadOnlyList<OllamaChatMessage> messages,
         string? model = null,
         IReadOnlyList<OllamaToolDefinition>? tools = null,
+        bool? think = null,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var request = new ChatRequest(
             model ?? options.Value.ChatModel,
             messages,
             true,
-            tools?.Select(t => new ToolRequest(new ToolFunctionRequest(t.Name, t.Description, t.Parameters))).ToArray());
+            tools?.Select(t => new ToolRequest(new ToolFunctionRequest(t.Name, t.Description, t.Parameters))).ToArray(),
+            think ?? options.Value.Think);
 
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, "/api/chat")
         {
@@ -61,7 +63,7 @@ public class OllamaClient(HttpClient httpClient, IOptions<OllamaOptions> options
 
     private record EmbeddingResponse(float[] Embedding);
 
-    private record ChatRequest(string Model, IReadOnlyList<OllamaChatMessage> Messages, bool Stream, ToolRequest[]? Tools);
+    private record ChatRequest(string Model, IReadOnlyList<OllamaChatMessage> Messages, bool Stream, ToolRequest[]? Tools, bool Think);
 
     private record ToolRequest(ToolFunctionRequest Function)
     {

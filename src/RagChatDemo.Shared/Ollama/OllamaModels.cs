@@ -9,16 +9,27 @@ public class OllamaOptions
     public string EmbedModel { get; set; } = "nomic-embed-text";
 
     public string ChatModel { get; set; } = "qwen3.6:27b";
+
+    public bool Think { get; set; } = false;
 }
 
 public interface IOllamaClient
 {
     Task<Pgvector.Vector> GetEmbeddingAsync(string text, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Streams a chat response from Ollama.
+    /// </summary>
+    /// <param name="messages">Conversation messages.</param>
+    /// <param name="model">Optional model override.</param>
+    /// <param name="tools">Optional tool definitions.</param>
+    /// <param name="think">Whether to enable thinking mode. Null means use the value from OllamaOptions.Think.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     IAsyncEnumerable<OllamaChatStreamChunk> StreamChatAsync(
         IReadOnlyList<OllamaChatMessage> messages,
         string? model = null,
         IReadOnlyList<OllamaToolDefinition>? tools = null,
+        bool? think = null,
         CancellationToken cancellationToken = default);
 }
 
