@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-19
 
-**Status**: Draft
+**Status**: Complete
 
 **Input**: User description: "I want to implement re-ranking on the vector search results. The candidate chunks that the vector search returns should be reranked using a cross encoder tool like Cohere to further ensure that the results provided to the LLM are consistent with the original question that was asked."
 
