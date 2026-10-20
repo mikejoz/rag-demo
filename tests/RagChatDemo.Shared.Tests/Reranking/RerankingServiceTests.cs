@@ -136,7 +136,7 @@ public sealed class RerankingServiceTests
         var a = Candidate("A", 0.9);
         var b = Candidate("B", 0.8);
 
-        var reranker = new FakeReranker(docs => [new(0, 0.1f), new(1, 0.9f)]);
+        var reranker = new FakeReranker(docs => [new(0, 0.3f), new(1, 0.9f)]);
         var options = new RerankOptions { TopN = 10 };
         var service = CreateService(reranker, options);
 

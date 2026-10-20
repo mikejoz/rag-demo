@@ -83,6 +83,7 @@ The public-facing backend hosting SignalR hubs, RAG orchestration, and OpenAPI d
 | Hubs | `/hubs/chat` (chat streaming), `/hubs/activity` (live telemetry) |
 | Endpoints | `GET /health` (all), `GET /health/live` (liveness), `GET /health/ready` (readiness), `POST /internal/activity-events`, `GET /swagger`, `GET /openapi/v1.json` (dev only) |
 | RAG Orchestrator | Streams tokens via SignalR, dispatches tool calls to MCP server, emits activity events |
+| Prompt grounding | Answers use only retrieved content (`GroundingPolicy`). Direct model answers are never streamed; if the model skips search, a knowledge-base search is forced (`forced_retrieval` event). Empty results return an "unable to find information" reply (`grounded_fallback` event). Reranker `MinScore` is the relevance floor |
 | MCP Client | Connects to McpServer via `HttpClientTransport` for `search_knowledge_base` and `create_support_ticket` |
 | Dev | Swagger UI + OpenAPI spec (gated behind `ASPNETCORE_ENVIRONMENT=Development`) |
 

@@ -15,8 +15,8 @@ public sealed class RerankOptions
 
     public int TopN { get; set; } = 5;
 
-    // Cross-encoder scores are low in absolute terms for paraphrased questions, so the default does not filter.
-    public double MinScore { get; set; } = 0;
+    // Provisional relevance floor — results scoring below this are dropped so weak matches count as "not found".
+    public double MinScore { get; set; } = 0.2;
 
     // Wider than the non-reranked 0.4 cutoff so the re-ranker has real candidates to reorder.
     public double CandidateMaxCosineDistance { get; set; } = 0.5;

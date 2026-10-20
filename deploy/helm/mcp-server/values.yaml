@@ -13,7 +13,7 @@ reranker:
   provider: Tei
   candidateCount: 20
   topN: 5
-  minScore: "0"
+  minScore: "0.2"
   candidateMaxCosineDistance: "0.5"
   timeoutSeconds: 3
   teiBaseUrl: http://reranker:80

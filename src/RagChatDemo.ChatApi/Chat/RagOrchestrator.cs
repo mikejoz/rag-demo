@@ -13,19 +13,10 @@ namespace RagChatDemo.ChatApi.Chat;
 /// <summary>
 /// Orchestrates the chat flow as genuine LLM-driven tool-calling: the model decides whether to
 /// call <c>search_knowledge_base</c>, <c>create_support_ticket</c>, both, or neither (research.md D4).
+/// Direct text is never streamed; if no tool call is made, a knowledge base search is forced.
 /// </summary>
 public class RagOrchestrator(IMcpToolClient mcpClient, IOllamaClient ollama, IActivityPublisher activityPublisher)
 {
-    private const string NoKnowledgeFoundResponse =
-        "I couldn't find any relevant information in the knowledge base to answer that question.";
-
-    private const string SystemPrompt =
-        "You are an IT support assistant. When the user asks a question, call the " +
-        "search_knowledge_base tool to find relevant information before answering - never answer " +
-        "from general knowledge. If the user explicitly wants to log/report an issue or asks for a " +
-        "ticket to be created, call create_support_ticket instead. Only use information returned by " +
-        "your tools; if a search finds nothing relevant, say you don't have that information.";
-
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     private static readonly IReadOnlyList<OllamaToolDefinition> Tools =
@@ -64,7 +55,7 @@ public class RagOrchestrator(IMcpToolClient mcpClient, IOllamaClient ollama, IAc
     {
         List<OllamaChatMessage> messages =
         [
-            new("system", SystemPrompt),
+            new("system", GroundingPolicy.SystemPrompt),
             new("user", userText),
         ];
 
@@ -73,7 +64,7 @@ public class RagOrchestrator(IMcpToolClient mcpClient, IOllamaClient ollama, IAc
         IReadOnlyList<OllamaToolCall> toolCalls;
         try
         {
-            toolCalls = await StreamDirectAnswerOrCollectToolCallsAsync(messages, messageId, caller, cancellationToken);
+            toolCalls = await CollectToolCallsAsync(messages, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -82,16 +73,30 @@ public class RagOrchestrator(IMcpToolClient mcpClient, IOllamaClient ollama, IAc
             return;
         }
 
+        // If no tool call was made, force a knowledge base search.
         if (toolCalls.Count == 0)
         {
-            // The model answered directly (tokens already streamed); no tool was needed.
-            await PublishAsync(ActivityCategory.Generation, "generate_response", ActivityStatus.Succeeded, null, cancellationToken);
-            await caller.ResponseComplete(messageId, []);
+            await PublishAsync(
+                ActivityCategory.Retrieval, "forced_retrieval", ActivityStatus.Succeeded,
+                "Model skipped search; forcing knowledge base search", cancellationToken);
+
+            var forcedToolCall = new OllamaToolCall(
+                "search_knowledge_base",
+                JsonSerializer.Serialize(new { query = userText, top_k = 5 }, JsonOptions));
+
+            await HandleToolCallAsync(forcedToolCall, messageId, messages, caller, cancellationToken);
             return;
         }
 
         // This demo handles a single tool call per turn - enough to demonstrate the pattern (US4).
         var toolCall = toolCalls[0];
+        await HandleToolCallAsync(toolCall, messageId, messages, caller, cancellationToken);
+    }
+
+    /// <summary>Handles tool execution, result processing, and final generation for a single tool call.</summary>
+    private async Task HandleToolCallAsync(
+        OllamaToolCall toolCall, Guid messageId, List<OllamaChatMessage> messages, IChatClient caller, CancellationToken cancellationToken)
+    {
         await PublishAsync(ActivityCategory.McpTool, toolCall.Name, ActivityStatus.Started, null, cancellationToken);
 
         SourceCitationDto[] citations;
@@ -128,7 +133,10 @@ public class RagOrchestrator(IMcpToolClient mcpClient, IOllamaClient ollama, IAc
 
                 if (searchResult.Results.Count == 0)
                 {
-                    await caller.ResponseToken(messageId, NoKnowledgeFoundResponse);
+                    await PublishAsync(
+                        ActivityCategory.Retrieval, "grounded_fallback", ActivityStatus.Succeeded,
+                        "No relevant content; returning not-found response", cancellationToken);
+                    await caller.ResponseToken(messageId, GroundingPolicy.NotFoundMessage);
                     await caller.ResponseComplete(messageId, []);
                     return;
                 }
@@ -137,7 +145,12 @@ public class RagOrchestrator(IMcpToolClient mcpClient, IOllamaClient ollama, IAc
                     .Select(r => new SourceCitationDto { DocumentTitle = r.DocumentTitle, SourceUrl = r.SourceUrl })
                     .DistinctBy(c => c.SourceUrl)
                     .ToArray();
-                messages.Add(new OllamaChatMessage("tool", JsonSerializer.Serialize(searchResult, JsonOptions)));
+
+                // Wrap the search result in context delimiters and add to messages
+                messages.Add(new OllamaChatMessage("tool", $"<context>{JsonSerializer.Serialize(searchResult, JsonOptions)}</context>"));
+
+                // Add grounding instruction for final generation
+                messages.Add(new OllamaChatMessage("system", GroundingPolicy.GroundedAnswerInstruction));
             }
             else
             {
@@ -191,15 +204,12 @@ public class RagOrchestrator(IMcpToolClient mcpClient, IOllamaClient ollama, IAc
     }
 
     /// <summary>
-    /// Streams the model's first response. If it calls a tool, returns the tool call(s) without
-    /// streaming anything (Ollama emits empty content alongside tool_calls). Otherwise streams the
-    /// direct answer to the caller and returns an empty list.
+    /// Calls the model with tool definitions and collects any tool calls. Direct text responses
+    /// are buffered and discarded - only tool calls are returned (prompt grounding enforcement).
     /// </summary>
-    private async Task<IReadOnlyList<OllamaToolCall>> StreamDirectAnswerOrCollectToolCallsAsync(
-        IReadOnlyList<OllamaChatMessage> messages, Guid messageId, IChatClient caller, CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<OllamaToolCall>> CollectToolCallsAsync(
+        IReadOnlyList<OllamaChatMessage> messages, CancellationToken cancellationToken)
     {
-        var filter = new ThinkTagFilter();
-
         await foreach (var chunk in ollama.StreamChatAsync(messages, tools: Tools, cancellationToken: cancellationToken))
         {
             if (chunk.ToolCalls is { Count: > 0 })
@@ -207,14 +217,7 @@ public class RagOrchestrator(IMcpToolClient mcpClient, IOllamaClient ollama, IAc
                 return chunk.ToolCalls;
             }
 
-            if (!string.IsNullOrEmpty(chunk.ContentToken))
-            {
-                var visible = filter.Feed(chunk.ContentToken);
-                if (visible.Length > 0)
-                {
-                    await caller.ResponseToken(messageId, visible);
-                }
-            }
+            // Discard direct text content (it may contain the model attempting to answer without retrieval)
         }
 
         return [];
