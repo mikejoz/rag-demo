@@ -48,7 +48,7 @@ interview-demo system with a one-week horizon: prefer the simplest design that d
 architecture end-to-end over a production-hardened one. Defer non-demo-critical concerns
 (multi-tenant auth, horizontal autoscaling, full retry/backoff policies) by recording them as
 assumptions rather than building them speculatively. Every simplification MUST still satisfy
-Principles I-V.
+Principles I–VIII.
 
 ### VII. Test Coverage Mandatory (NON-NEGOTIABLE)
 All business logic MUST be tested. Minimum requirements:
@@ -87,6 +87,100 @@ hierarchy.
 - **Streaming**: user-facing chat responses MUST stream token-by-token to the client (SignalR)
   rather than returning a single final message.
 - **Namespace**: Kubernetes resources are deployed to the `rag-demo` namespace.
+
+## Resilience Policy
+
+All external service calls MUST be resilient to transient failures:
+
+- **Explicit timeouts**: every outbound HTTP call, database query, and LLM request MUST have a configured timeout; use `CancellationToken` propagation throughout async pipelines
+- **Retry with backoff**: implement exponential backoff (with jitter) for transient failures (network errors, HTTP 503). Cap retries at 3 attempts maximum to avoid cascading delays
+- **Circuit breaker**: apply circuit-breaker pattern for critical path dependencies (Ollama, pgvector). Open the circuit after 5 consecutive failures; half-open after 30 seconds
+- **Idempotent background jobs**: all Hangfire jobs MUST be designed to be safely re-executed without side effects, since retries may run on failure
+- **Polly for .NET**: use [Polly](https://www.thepollyproject.org/) as the standard library for implementing retry, circuit-breaker, and timeout policies across all .NET services
+
+## Preferred Architecture
+
+### Backend
+- **Clean Architecture**: separate domain, application, infrastructure, and presentation layers
+- **Dependency Injection**: prefer DI containers over static or service-locator patterns
+- **Repository Pattern**: abstract data access behind repository interfaces
+
+### API
+- **REST first**: design APIs using RESTful conventions before considering alternatives
+- **OpenAPI required**: every endpoint MUST include OpenAPI/Swagger documentation
+
+### Database
+- **Migrations required**: all schema changes MUST go through versioned migrations
+- **No direct schema modification**: manual or ad hoc DDL changes to production databases are prohibited
+
+### Frontend
+- **Feature-based organization**: structure Angular applications by feature domain, not technical layer
+- **Stateless components**: keep presentational components stateless when possible; push state management upward
+
+## Git & Commit Conventions
+
+### Commit Messages
+- **Conventional Commits format**: `type(scope): message` (e.g., `feat(chat): add streaming response support`)
+- **Allowed types**: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `ci`, `style`
+- **Scope** is the affected component (e.g., `chatapi`, `frontend`, `helm`, `ingestion`)
+- Commit body MUST include rationale for non-obvious changes
+
+### Branch Naming
+- Feature branches: `feature/001-{short-name}` (match spec number)
+- Bug fixes: `fix/{issue-number}-{short-description}`
+- Keep branches short-lived; no long-lived development branches
+
+### Merge Strategy
+- Squash merge to `main`; each feature becomes a single, clean commit in history
+- Delete source branch after merge
+- `main` is always deployable; no breaking changes land directly without verification
+
+## Package Dependency Policy
+
+- **Audit before ship**: run `dotnet list package --vulnerable` and `npm audit` as part of pre-deployment checks; block merges with known high or critical vulnerabilities
+- **Central Package Management (CPM)**: prefer Directory.Packages.props for NuGet version pinning across the solution where available
+- **Pin major versions**: lock to a specific major version; allow patch-level flexibility (e.g., `8.*` not `8.0.1`) unless security requires exact pinning
+- **No stale packages**: remove unused dependencies during code review
+- **Supply chain hygiene**: prefer well-maintained, widely-used packages; flag and justify niche or low-download-count dependencies
+
+## Deployment Process
+
+- **Helm-driven deployments**: all Kubernetes resources MUST be managed via Helm charts under `deploy/helm/`; no raw manifests in production
+- **Port management**: any service port change MUST update `deploy/scripts/port-forward.ps1` and the URL list in `ARCHITECTURE.md` in the same commit
+- **Rollback strategy**: maintain at least 2 previous stable Helm chart versions in version control; rollback via `helm rollback` before attempting in-place fixes
+- **Configuration separation**: Helm values MUST never contain secrets; use Kubernetes `Secret` objects or sealed secrets for sensitive configuration
+- **Health check verification**: after every deployment, verify readiness and liveness probes are responding before considering the release complete
+
+## Coding Standards
+
+### C#
+- **Nullable reference types**: MUST be enabled in all project files
+- **Async-first design**: prefer asynchronous APIs for I/O-bound operations
+- **Top-level statements**: use for new, small projects and scripts
+- **Primary constructors**: prefer where applicable to reduce boilerplate
+
+### TypeScript
+- **Strict mode**: `strict` option MUST be enabled in tsconfig.json
+- **ESLint**: required for all TypeScript source files
+- **Prettier**: required for consistent code formatting
+- **Standalone components**: no NgModules; use standalone component pattern
+- **Signals over RxJS**: prefer Angular signals for state management where possible
+
+### PowerShell
+- **PSScriptAnalyzer**: required for all `.ps1` scripts
+- **Comment-based help**: all advanced functions MUST include comment-based help documentation
+- **StrictMode**: MUST be enabled in development scripts
+
+## AI Development Rules
+
+Code generated by AI assistants MUST:
+
+- **Prefer readability over cleverness**: clear, idiomatic code is better than concise but obscure code
+- **Avoid excessive abstractions**: introduce layers only when they solve a concrete problem
+- **Explain architectural decisions**: document the rationale behind non-obvious design choices
+- **Include comments only when valuable**: comment the "why", not the "what"
+- **Never generate placeholder security code**: no TODO-based auth or bypasses; security must be implemented correctly
+- **Never silently swallow exceptions**: every catch block MUST log, rethrow, or handle — never discard
 
 ## API Contract Conventions
 
@@ -156,4 +250,4 @@ principles or sections, PATCH for clarifications/wording. Compliance is self-rev
 implementer at each task checkpoint; use this file as the source of truth when a decision in
 `plan.md` or `tasks.md` appears to conflict with it.
 
-**Version**: 1.3.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-22
+**Version**: 1.5.0 | **Ratified**: 2026-10-01 | **Last Amended**: 2026-10-22
