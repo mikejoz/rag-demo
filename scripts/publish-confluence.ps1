@@ -367,15 +367,18 @@ function Find-PageByTitle {
     $encodedTitle = [Uri]::EscapeDataString($Title)
 
     if ($ParentId) {
-        $url = "$ConfluenceBaseUrl/wiki/rest/api/content/$ParentId/child/page?title=$encodedTitle&limit=1"
+        $url = "$ConfluenceBaseUrl/wiki/rest/api/content/$ParentId/child/page?title=$encodedTitle&limit=5"
     } else {
-        $url = "$ConfluenceBaseUrl/wiki/rest/api/content?spaceKey=$ConfluenceSpaceKey&title=$encodedTitle&type=page&limit=1"
+        $url = "$ConfluenceBaseUrl/wiki/rest/api/content?spaceKey=$ConfluenceSpaceKey&title=$encodedTitle&type=page&limit=5"
     }
 
     try {
         $resp = Invoke-RestMethod -Uri $url -Headers @{ "Authorization" = $basicAuth } -Method Get
-        if ($resp.results.Count -gt 0) {
-            return $resp.results[0]
+        foreach ($page in $resp.results) {
+            # Verify exact title match (Confluence API title filter can be loose)
+            if ($page.title -eq $Title) {
+                return $page
+            }
         }
     } catch {
         Write-Host "[Warning] Error searching for page '$Title': $_" -ForegroundColor Yellow
