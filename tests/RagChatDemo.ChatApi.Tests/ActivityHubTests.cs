@@ -9,7 +9,7 @@ using RagChatDemo.Shared.Contracts;
 
 namespace RagChatDemo.ChatApi.Tests;
 
-public class ActivityHubTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
+public class ActivityHubTests(TestableChatApiFactory factory) : IClassFixture<TestableChatApiFactory>
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {

@@ -11,12 +11,19 @@ namespace RagChatDemo.IngestionWorker.Tests;
 /// </summary>
 public class IngestionJobTests : IAsyncLifetime
 {
-    private const string ConnectionString =
-        "Host=localhost;Port=5432;Database=ragchatdemo;Username=postgres;Password=postgres";
-
+    private static readonly string ConnectionString =
+        Environment.GetEnvironmentVariable("RAGCHATDEMO_TEST_CONNECTION_STRING")
+        ?? throw new InvalidOperationException(
+            "RAGCHATDEMO_TEST_CONNECTION_STRING environment variable is not set. " +
+            "Set it to a PostgreSQL+pgvector connection string, e.g.: " +
+            "'Host=localhost;Port=5432;Database=ragchatdemo_test;Username=postgres;Password=your_password'");
     private readonly string externalId = $"ingestion-test-{Guid.NewGuid()}";
 
-    public Task InitializeAsync() => Task.CompletedTask;
+    public async Task InitializeAsync()
+    {
+        await using var db = CreateDbContext();
+        await db.Database.MigrateAsync();
+    }
 
     public async Task DisposeAsync()
     {

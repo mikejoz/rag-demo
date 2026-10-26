@@ -9,11 +9,11 @@ using RagChatDemo.Shared.Ollama;
 
 namespace RagChatDemo.ChatApi.Tests;
 
-public class ChatHubTests : IClassFixture<WebApplicationFactory<Program>>
+public class ChatHubTests : IClassFixture<TestableChatApiFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public ChatHubTests(WebApplicationFactory<Program> factory)
+    public ChatHubTests(TestableChatApiFactory factory)
     {
         this.factory = factory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
