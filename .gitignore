@@ -24,3 +24,7 @@ deploy/helm/**/*.tgz
 !.vscode/extensions.json
 Thumbs.db
 .DS_Store
+
+# SonarQube scanner output directories
+.scannerwork/
+.sonarqube/

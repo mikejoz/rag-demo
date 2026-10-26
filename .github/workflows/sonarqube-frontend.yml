@@ -1,0 +1,54 @@
+# SonarQube Community Build — Angular/TypeScript Frontend Scan
+# Triggers: push to main only, or manual workflow_dispatch
+# Runner requires labels: self-hosted, Windows, X64, sonarqube
+
+name: "SonarQube Frontend"
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  scan:
+    if: github.ref == 'refs/heads/main'
+    name: Scan Angular Frontend
+    runs-on: [self-hosted, Windows, X64, sonarqube]
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/rag-chat-demo/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend/rag-chat-demo
+        run: npm ci
+
+      - name: Run tests
+        working-directory: frontend/rag-chat-demo
+        run: npm test -- --watch=false
+
+      - name: Build Angular app
+        working-directory: frontend/rag-chat-demo
+        run: npm run build -- --configuration production
+
+      - name: Run SonarQube Scanner CLI in Docker
+        run: |
+          $scanSource = Join-Path $env:GITHUB_WORKSPACE 'frontend/rag-chat-demo'
+          docker run --rm `
+            --mount "type=bind,source=$scanSource,target=/usr/src" `
+            --workdir /usr/src `
+            -e SONAR_HOST_URL `
+            -e SONAR_TOKEN `
+            sonarsource/sonar-scanner-cli `
+            -DprojectBaseDir=/usr/src
+        env:
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

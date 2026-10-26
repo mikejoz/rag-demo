@@ -1,0 +1,60 @@
+# SonarQube Community Build — .NET Backend Scan
+# Triggers: push to main only, or manual workflow_dispatch
+# Runner requires labels: self-hosted, Windows, X64, sonarqube
+
+name: "SonarQube Backend"
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+env:
+  SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+
+jobs:
+  scan:
+    if: github.ref == 'refs/heads/main'
+    name: Scan .NET Backend
+    runs-on: [self-hosted, Windows, X64, sonarqube]
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install SonarScanner for .NET
+        run: |
+          dotnet tool update --global dotnet-sonarscanner
+          if ($LASTEXITCODE -ne 0) {
+            dotnet tool install --global dotnet-sonarscanner
+          }
+
+      - name: Begin SonarQube analysis
+        env:
+          SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          dotnet sonarscanner begin /k:"mikejoz_ragchatdemo" `
+            /d:sonar.host.url="$env:SONAR_HOST_URL" `
+            /d:sonar.token="$env:SONAR_TOKEN"
+
+      - name: Restore dependencies
+        run: dotnet restore RagChatDemo.slnx
+
+      - name: Build solution
+        run: dotnet build RagChatDemo.slnx --no-restore
+
+      - name: Run tests
+        run: dotnet test RagChatDemo.slnx --no-build
+
+      - name: End SonarQube analysis
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          dotnet sonarscanner end /d:sonar.token="$env:SONAR_TOKEN"
