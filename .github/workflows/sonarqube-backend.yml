@@ -1,0 +1,85 @@
+name: SonarQube Backend
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sonarqube-ragdemo-backend
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    if: github.ref == 'refs/heads/develop'
+    name: Scan .NET Backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: ragchatdemo_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 127.0.0.1:5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ragchatdemo_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install SonarScanner for .NET
+        run: dotnet tool install --global dotnet-sonarscanner --version 12.0.0
+      - name: Begin SonarQube analysis
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || vars.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          dotnet sonarscanner begin \
+            /k:mikejoz_ragchatdemo \
+            "/d:sonar.host.url=$SONAR_HOST_URL" \
+            "/d:sonar.token=$SONAR_TOKEN" \
+            /d:sonar.scanner.scanAll=false \
+            "/d:sonar.cs.opencover.reportsPaths=TestResults/*/coverage.opencover.xml" \
+            "/d:sonar.exclusions=**/Migrations/**,**/*.Designer.cs,**/bin/**,**/obj/**,frontend/**" \
+            /d:sonar.qualitygate.wait=true \
+            /d:sonar.qualitygate.timeout=300
+      - name: Restore dependencies
+        run: dotnet restore RagChatDemo.slnx
+      - name: Build solution
+        run: dotnet build RagChatDemo.slnx -c Release --no-incremental --no-restore
+      - name: Run tests and collect coverage
+        env:
+          RAGCHATDEMO_TEST_CONNECTION_STRING: Host=localhost;Port=5432;Database=ragchatdemo_test;Username=postgres
+        run: dotnet test RagChatDemo.slnx --no-build --no-restore -c Release -m:1 --collect 'XPlat Code Coverage' --results-directory TestResults --logger trx -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+      - name: Validate OpenCover reports
+        shell: pwsh
+        run: ./scripts/Validate-SonarCoverage.ps1 -BackendResultsDirectory TestResults
+      - name: End SonarQube analysis and wait for gate
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: dotnet sonarscanner end "/d:sonar.token=$SONAR_TOKEN"
+      - name: Upload test results and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-tests-and-coverage
+          path: |
+            TestResults/**/*.trx
+            TestResults/**/coverage.opencover.xml
+          retention-days: 7

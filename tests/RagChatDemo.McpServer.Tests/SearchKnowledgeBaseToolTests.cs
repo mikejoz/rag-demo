@@ -33,9 +33,12 @@ internal sealed class FakeConfluenceClient(params ConfluencePage[] pages) : ICon
 // against.
 public class SearchKnowledgeBaseToolTests : IAsyncLifetime
 {
-    private const string ConnectionString =
-        "Host=localhost;Port=5432;Database=ragchatdemo;Username=postgres;Password=postgres";
-
+    private static readonly string ConnectionString =
+        Environment.GetEnvironmentVariable("RAGCHATDEMO_TEST_CONNECTION_STRING")
+        ?? throw new InvalidOperationException(
+            "RAGCHATDEMO_TEST_CONNECTION_STRING environment variable is not set. " +
+            "Set it to a PostgreSQL+pgvector connection string, e.g.: " +
+            "'Host=localhost;Port=5432;Database=ragchatdemo_test;Username=postgres;Password=your_password'");
     private RagChatDemoDbContext _db = null!;
     private Guid _documentId;
     private Guid _chunkId;
@@ -47,6 +50,8 @@ public class SearchKnowledgeBaseToolTests : IAsyncLifetime
             .UseNpgsql(ConnectionString, npgsql => npgsql.UseVector())
             .Options;
         _db = new RagChatDemoDbContext(options);
+
+        await _db.Database.MigrateAsync();
 
         _documentId = Guid.NewGuid();
         _chunkId = Guid.NewGuid();

@@ -13,11 +13,11 @@ namespace RagChatDemo.ChatApi.Tests;
 /// Integration test: verify that <think>...</think> tags emitted by the fake Ollama client are stripped
 /// before reaching the SignalR client.
 /// </summary>
-public class ThinkTagFilterIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
+public class ThinkTagFilterIntegrationTests : IClassFixture<TestableChatApiFactory>
 {
     private readonly WebApplicationFactory<Program> factory;
 
-    public ThinkTagFilterIntegrationTests(WebApplicationFactory<Program> factory)
+    public ThinkTagFilterIntegrationTests(TestableChatApiFactory factory)
     {
         this.factory = factory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>

@@ -1,0 +1,71 @@
+# SonarQube Community Build — Angular/TypeScript Frontend Scan (Develop-First)
+# Triggers: push to develop, or manual workflow_dispatch
+# Runner: GitHub-hosted Ubuntu latest
+
+name: "SonarQube Frontend"
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    if: github.ref == 'refs/heads/develop'
+    name: Scan Angular Frontend
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    concurrency:
+      group: sonarqube-ragdemo-frontend
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/rag-chat-demo/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend/rag-chat-demo
+        run: npm ci
+
+      - name: Run tests with coverage
+        working-directory: frontend/rag-chat-demo
+        run: npm run test:coverage
+
+      - name: Build Angular app
+        working-directory: frontend/rag-chat-demo
+        run: npm run build -- --configuration production
+
+      - name: Validate LCOV report
+        shell: pwsh
+        run: ./scripts/Validate-SonarCoverage.ps1 -Frontend
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9
+        env:
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL || vars.SONAR_HOST_URL }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          projectBaseDir: frontend/rag-chat-demo
+          args: >-
+            -Dsonar.qualitygate.wait=true
+            -Dsonar.qualitygate.timeout=300
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage-lcov
+          path: frontend/rag-chat-demo/coverage/**/lcov.info
+          retention-days: 7
